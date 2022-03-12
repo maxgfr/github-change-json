@@ -11,10 +11,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+      - name: Get commit sha
+        run: |
+          echo "GITHUB_SHA=${GITHUB_SHA}" >> $GITHUB_ENV
       - name: Modify name of the package.json
         uses: ./
         with:
           key: 'name'
-          value: '@maxgfr/example'
-          path: ./example/package.json
+          value: '@maxgfr/example-${{ env.GITHUB_SHA }}'
+          path: ../example/package.json
           commit: true
