@@ -1,6 +1,6 @@
 # actions-change-json [![View Action](https://img.shields.io/badge/view-github%20action-yellow.svg)](https://github.com/marketplace/actions/actions-change-json) [![pipeline](https://img.shields.io/github/workflow/status/maxgfr/actions-change-json/build-test)](https://github.com/maxgfr/actions-change-jsons/actions/workflows/build.yaml)
 
-`maxgfr/actions-change-json` is a [GitHub Action](https://github.com/features/actions) which lets you to change a value of a file (e.g. package.json).
+`maxgfr/actions-change-json` is a [GitHub Action](https://github.com/features/actions) which lets you to change a value from a json file (e.g. package.json).
 
 ## Why
 
