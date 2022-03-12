@@ -74,7 +74,7 @@ const run = () => __awaiter(void 0, void 0, void 0, function* () {
             console.log(process.env);
             yield exec.exec('git', [
                 'push',
-                '-u',
+                '-uf',
                 'origin',
                 `HEAD:${(_b = process.env.GITHUB_HEAD_REF) !== null && _b !== void 0 ? _b : process.env.GITHUB_REF}`
             ]);

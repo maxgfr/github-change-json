@@ -35,7 +35,7 @@ const run = async (): Promise<void> => {
       console.log(process.env)
       await exec.exec('git', [
         'push',
-        '-u',
+        '-uf',
         'origin',
         `HEAD:${process.env.GITHUB_HEAD_REF ?? process.env.GITHUB_REF}`
       ])
