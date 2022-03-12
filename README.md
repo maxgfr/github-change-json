@@ -1,10 +1,10 @@
 # actions-change-json [![View Action](https://img.shields.io/badge/view-github%20action-yellow.svg)](https://github.com/marketplace/actions/actions-change-json) [![pipeline](https://img.shields.io/github/workflow/status/maxgfr/actions-change-json/build-test)](https://github.com/maxgfr/actions-change-jsons/actions/workflows/build.yaml)
 
-`maxgfr/actions-change-json` is a [GitHub Action](https://github.com/features/actions) which lets you to change json values of a file (e.g. package.json).
+`maxgfr/actions-change-json` is a [GitHub Action](https://github.com/features/actions) which lets you to change a value of a file (e.g. package.json).
 
 ## Why
 
-Sometimes, you need to update a `.json` file in a package during an action, such as when you want to deploy a package across github and npm packages, and you want to have different version name for each package. (e.g `@maxgfr/package-name`for github and `package-name` for npm). That's why, I created this action.
+Sometimes you need to update a `.json` file in your project during a workflow. For example, when you want to deploy a package to github packages and npm packages with a different name for each package. (e.g. `@maxgfr/package-name` for github packages and `package-name` for npm packages). The purpose of this action is to handle this kind of situation by updating your `.json` file directly during the workflow without having to manually edit it.
 
 ## Usage
 

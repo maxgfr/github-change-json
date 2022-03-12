@@ -1,5 +1,5 @@
 name: GitHub Change Json
-description: Github action which lets you to change json values of a file (e.g. package.json)
+description: Github action which lets you to change a value from a json file (e.g. package.json).
 author: maxgfr
 branding:
   icon: bookmark

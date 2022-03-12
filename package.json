@@ -1,7 +1,7 @@
 {
   "name": "@maxgfr/action-change-json",
   "private": true,
-  "description": "Github action which lets you to change json values of a file (e.g. package.json)",
+  "description": "Github action which lets you to change a value from a json file (e.g. package.json)",
   "main": "lib/main.js",
   "scripts": {
     "build": "tsc",
