@@ -21,3 +21,9 @@ jobs:
           value: '@maxgfr/example-${{ env.GITHUB_SHA }}'
           path: example/package.json
           commit: true
+      - name: Modify name of the package.json locally
+        uses: ./
+        with:
+          key: 'name'
+          value: 'yo'
+          path: ./example/package.json

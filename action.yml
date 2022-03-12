@@ -9,18 +9,15 @@ runs:
   main: dist/index.js
 
 inputs:
-  token:
-    required: true
-    description: GitHub token
   path:
     required: true
     description: Path to package.json
   key:
     required: true
-    description: One of 'start' and 'finish'
+    description: Key that you want to modify in your json
   value:
-    required: false
-    description: Description to set in status
+    required: true
+    description: Value linked to the key that you want to modify in your json
   commit:
     required: false
     description: Print arguments used by this action.
