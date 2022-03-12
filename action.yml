@@ -1,0 +1,26 @@
+name: GitHub Change Json
+description: Github action which lets you to change json values of a file (e.g. package.json)
+author: maxgfr
+branding:
+  icon: bookmark
+  color: red
+runs:
+  using: node16
+  main: dist/index.js
+
+inputs:
+  token:
+    required: true
+    description: GitHub token
+  path:
+    required: true
+    description: Path to package.json
+  key:
+    required: true
+    description: One of 'start' and 'finish'
+  value:
+    required: false
+    description: Description to set in status
+  commit:
+    required: false
+    description: Print arguments used by this action.
