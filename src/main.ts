@@ -32,7 +32,11 @@ const run = async (): Promise<void> => {
         `fix: update ${path} with ${key}=${value}`,
         '--no-verify'
       ])
-      await exec.exec('git', ['push'])
+      await exec.exec('git', [
+        'push',
+        'origin',
+        `HEAD:${process.env.GITHUB_BASE_REF}`
+      ])
       core.info('Updated files version successfully')
     } else {
       core.info('Skipping commit files')
