@@ -75,9 +75,9 @@ const run = () => __awaiter(void 0, void 0, void 0, function* () {
                 'push',
                 '-u',
                 'origin',
-                `HEAD:${process.env.GITHUB_REF}`
+                `HEAD:${process.env.GITHUB_BASE_REF || process.env.GITHUB_REF}`
             ]);
-            core.info('Updated files version successfully');
+            core.info('File has been successfully committed and pushed');
         }
         else {
             core.info('Skipping commit files');
