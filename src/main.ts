@@ -37,7 +37,7 @@ const run = async (): Promise<void> => {
         'push',
         '-u',
         'origin',
-        `HEAD:${process.env.GITHUB_REF}`
+        `HEAD:${process.env.GITHUB_HEAD_REF ?? process.env.GITHUB_REF}`
       ])
       core.info('File has been successfully committed and pushed')
     } else {
