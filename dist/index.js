@@ -43,7 +43,7 @@ const core = __importStar(__nccwpck_require__(186));
 const exec = __importStar(__nccwpck_require__(514));
 const utils_1 = __nccwpck_require__(918);
 const run = () => __awaiter(void 0, void 0, void 0, function* () {
-    var _a;
+    var _a, _b;
     try {
         core.info('Setting input and environment variables');
         const isCommit = core.getInput('commit');
@@ -71,12 +71,14 @@ const run = () => __awaiter(void 0, void 0, void 0, function* () {
                 `fix: update ${path} with ${key}=${value}`,
                 '--no-verify'
             ]);
+            console.log(process.env);
             yield exec.exec('git', [
                 'push',
+                '-uf',
                 'origin',
-                `HEAD:${process.env.GITHUB_REF}`
+                `HEAD:${(_b = process.env.GITHUB_HEAD_REF) !== null && _b !== void 0 ? _b : process.env.GITHUB_REF}`
             ]);
-            core.info('Updated files version successfully');
+            core.info('File has been successfully committed and pushed');
         }
         else {
             core.info('Skipping commit files');
