@@ -28,7 +28,7 @@
   "license": "MIT",
   "dependencies": {
     "@actions/core": "1.6.0",
-    "@actions/exec": "^1.1.0"
+    "@actions/exec": "1.1.0"
   },
   "devDependencies": {
     "@types/node": "17.0.21",
