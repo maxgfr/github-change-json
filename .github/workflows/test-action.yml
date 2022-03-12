@@ -19,5 +19,5 @@ jobs:
         with:
           key: 'name'
           value: '@maxgfr/example-${{ env.GITHUB_SHA }}'
-          path: ../example/package.json
+          path: example/package.json
           commit: true

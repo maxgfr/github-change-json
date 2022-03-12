@@ -43,6 +43,7 @@ const core = __importStar(__nccwpck_require__(186));
 const exec = __importStar(__nccwpck_require__(514));
 const utils_1 = __nccwpck_require__(918);
 const run = () => __awaiter(void 0, void 0, void 0, function* () {
+    var _a;
     try {
         core.info('Setting input and environment variables');
         const isCommit = core.getInput('commit');
@@ -53,9 +54,22 @@ const run = () => __awaiter(void 0, void 0, void 0, function* () {
         if (isCommit) {
             core.info('Committing file changes');
             yield exec.exec('git', [
+                'config',
+                '--global',
+                'user.name',
+                (_a = process.env.GITHUB_ACTOR) !== null && _a !== void 0 ? _a : ''
+            ]);
+            yield exec.exec('git', [
+                'config',
+                '--global',
+                'user.email',
+                `${process.env.GITHUB_ACTOR}@users.noreply.github.com`
+            ]);
+            yield exec.exec('git', [
                 'commit',
                 '-am',
-                `fix: update ${path} with ${key}=${value}`
+                `fix: update ${path} with ${key}=${value}`,
+                '--no-verify'
             ]);
             yield exec.exec('git', ['push']);
             core.info('Updated files version successfully');
@@ -78,29 +92,6 @@ run();
 
 "use strict";
 
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    var desc = Object.getOwnPropertyDescriptor(m, k);
-    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-      desc = { enumerable: true, get: function() { return m[k]; } };
-    }
-    Object.defineProperty(o, k2, desc);
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
-    Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
-    o["default"] = v;
-});
-var __importStar = (this && this.__importStar) || function (mod) {
-    if (mod && mod.__esModule) return mod;
-    var result = {};
-    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
-    __setModuleDefault(result, mod);
-    return result;
-};
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
@@ -119,13 +110,15 @@ const fs_1 = __importDefault(__nccwpck_require__(147));
 const path_1 = __importDefault(__nccwpck_require__(17));
 function modifyPackageJson(fileName, properties) {
     return __awaiter(this, void 0, void 0, function* () {
-        const file = yield Promise.resolve().then(() => __importStar(require(fileName)));
+        const filePath = path_1.default.resolve(process.cwd(), fileName);
+        const file = fs_1.default.readFileSync(filePath, 'utf8');
+        const newFile = JSON.parse(file);
         for (const prop of properties) {
-            file[prop.key] = prop.value;
+            newFile[prop.key] = prop.value;
         }
-        fs_1.default.writeFile(path_1.default.join(__dirname, fileName), JSON.stringify(file, null, 2), err => {
+        fs_1.default.writeFile(filePath, JSON.stringify(newFile, null, 2), err => {
             if (err) {
-                return console.log(err);
+                throw new Error(err.message);
             }
             console.log(`Writing to ${fileName}`);
         });

@@ -15,9 +15,22 @@ const run = async (): Promise<void> => {
     if (isCommit) {
       core.info('Committing file changes')
       await exec.exec('git', [
+        'config',
+        '--global',
+        'user.name',
+        process.env.GITHUB_ACTOR ?? ''
+      ])
+      await exec.exec('git', [
+        'config',
+        '--global',
+        'user.email',
+        `${process.env.GITHUB_ACTOR}@users.noreply.github.com`
+      ])
+      await exec.exec('git', [
         'commit',
         '-am',
-        `fix: update ${path} with ${key}=${value}`
+        `fix: update ${path} with ${key}=${value}`,
+        '--no-verify'
       ])
       await exec.exec('git', ['push'])
       core.info('Updated files version successfully')

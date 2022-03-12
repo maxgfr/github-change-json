@@ -5,18 +5,16 @@ export async function modifyPackageJson(
   fileName: string,
   properties: {key: string; value: string}[]
 ): Promise<void> {
-  const file: Record<string, any> = await import(fileName)
+  const filePath = path.resolve(process.cwd(), fileName)
+  const file = fs.readFileSync(filePath, 'utf8')
+  const newFile: Record<string, any> = JSON.parse(file)
   for (const prop of properties) {
-    file[prop.key] = prop.value
+    newFile[prop.key] = prop.value
   }
-  fs.writeFile(
-    path.join(__dirname, fileName),
-    JSON.stringify(file, null, 2),
-    err => {
-      if (err) {
-        return console.log(err)
-      }
-      console.log(`Writing to ${fileName}`)
+  fs.writeFile(filePath, JSON.stringify(newFile, null, 2), err => {
+    if (err) {
+      throw new Error(err.message)
     }
-  )
+    console.log(`Writing to ${fileName}`)
+  })
 }
