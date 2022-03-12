@@ -71,11 +71,7 @@ const run = () => __awaiter(void 0, void 0, void 0, function* () {
                 `fix: update ${path} with ${key}=${value}`,
                 '--no-verify'
             ]);
-            yield exec.exec('git', [
-                'push',
-                'origin',
-                `HEAD:${process.env.GITHUB_REF}`
-            ]);
+            yield exec.exec('git', ['push', 'origin', `${process.env.GITHUB_REF}`]);
             core.info('Updated files version successfully');
         }
         else {
