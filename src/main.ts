@@ -35,7 +35,7 @@ const run = async (): Promise<void> => {
       await exec.exec('git', [
         'push',
         'origin',
-        `HEAD:${process.env.GITHUB_BASE_REF}`
+        `HEAD:${process.env.GITHUB_REF_NAME}`
       ])
       core.info('Updated files version successfully')
     } else {

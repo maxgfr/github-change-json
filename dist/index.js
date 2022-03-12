@@ -74,7 +74,7 @@ const run = () => __awaiter(void 0, void 0, void 0, function* () {
             yield exec.exec('git', [
                 'push',
                 'origin',
-                `HEAD:${process.env.GITHUB_BASE_REF}`
+                `HEAD:${process.env.GITHUB_REF_NAME}`
             ]);
             core.info('Updated files version successfully');
         }
