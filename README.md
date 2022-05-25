@@ -1,6 +1,6 @@
-# actions-change-json [![View Action](https://img.shields.io/badge/view-github%20action-yellow.svg)](https://github.com/marketplace/actions/actions-change-json) [![pipeline](https://img.shields.io/github/workflow/status/maxgfr/actions-change-json/build-test)](https://github.com/maxgfr/actions-change-jsons/actions/workflows/build.yaml)
+# github-change-json [![View Action](https://img.shields.io/badge/view-github%20action-yellow.svg)](https://github.com/marketplace/actions/github-change-json) [![pipeline](https://img.shields.io/github/workflow/status/maxgfr/github-change-json/build-test)](https://github.com/maxgfr/github-change-json/actions/workflows/build.yaml)
 
-`maxgfr/actions-change-json` is a [GitHub Action](https://github.com/features/actions) which lets you to change a value from a json file (e.g. package.json).
+`maxgfr/github-change-json` is a [GitHub Action](https://github.com/features/actions) which lets you to change a value from a json file (e.g. package.json).
 
 ## Why
 
@@ -23,14 +23,14 @@ jobs:
         run: |
           echo "GITHUB_SHA=${GITHUB_SHA}" >> $GITHUB_ENV
       - name: Modify name of the package.json
-        uses: maxgfr/actions-change-json@main
+        uses: maxgfr/github-change-json@main
         with:
           key: 'name'
           value: '@maxgfr/example-${{ env.GITHUB_SHA }}'
           path: example/package.json
           commit: true # it will commit the change
       - name: Modify name of the package.json locally
-        uses: maxgfr/actions-change-json@main
+        uses: maxgfr/github-change-json@main
         with:
           key: 'name'
           value: 'yo'

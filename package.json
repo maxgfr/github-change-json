@@ -1,5 +1,5 @@
 {
-  "name": "@maxgfr/action-change-json",
+  "name": "@maxgfr/github-change-json",
   "private": true,
   "description": "Github action which lets you to change a value from a json file (e.g. package.json)",
   "main": "lib/main.js",
@@ -16,9 +16,10 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/maxgfr/actions-change-json.git"
+    "url": "git+https://github.com/maxgfr/github-change-json.git"
   },
   "keywords": [
+    "github",
     "actions",
     "change",
     "package-json",
