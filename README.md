@@ -4,7 +4,7 @@
 
 ## Why
 
-Sometimes you need to update a `.json` file in your project during a workflow. For example, when you want to deploy a package to github packages and npm packages with a different name for each package. (e.g. `@maxgfr/package-name` for github packages and `package-name` for npm packages). The purpose of this action is to handle this kind of situation by updating your `.json` file directly during the workflow without having to manually edit it.
+Sometimes you need to update a `.json` file in your project during a workflow. For example, when you want to deploy a package to github packages and npm packages with a different name for each package. (e.g. `@maxgfr/package-name` for github packages and `package-name` for npm packages) or you want to publish a create-react-app to github pages by modifing `homepage` prop such as [here](https://github.com/maxgfr/release-notes-finder/blob/main/.github/workflows/pages.yml#L27-L32). The purpose of this action is to handle this kind of situation by updating your `.json` file directly during the workflow without having to manually edit it.
 
 ## Usage
 
