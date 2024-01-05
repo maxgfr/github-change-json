@@ -1,7 +1,8 @@
 <!--
---- Readme.md Snippet without images Start ---
+&lt;--- Readme.md Snippet without images Start ---&gt;
 ## Tech Stack
 maxgfr/github-change-json is built on the following main stack:
+
 - [Jest](http://facebook.github.io/jest/) – Javascript Testing Framework
 - [Node.js](http://nodejs.org/) – Frameworks (Full Stack)
 - [JavaScript](https://developer.mozilla.org/en-US/docs/Web/JavaScript) – Languages
@@ -13,11 +14,13 @@ maxgfr/github-change-json is built on the following main stack:
 - [GitHub Actions](https://github.com/features/actions) – Continuous Integration
 
 Full tech stack [here](/techstack.md)
---- Readme.md Snippet without images End ---
 
---- Readme.md Snippet with images Start ---
+&lt;--- Readme.md Snippet without images End ---&gt;
+
+&lt;--- Readme.md Snippet with images Start ---&gt;
 ## Tech Stack
 maxgfr/github-change-json is built on the following main stack:
+
 - <img width='25' height='25' src='https://img.stackshare.io/service/830/jest.png' alt='Jest'/> [Jest](http://facebook.github.io/jest/) – Javascript Testing Framework
 - <img width='25' height='25' src='https://img.stackshare.io/service/1011/n1JRsFeB_400x400.png' alt='Node.js'/> [Node.js](http://nodejs.org/) – Frameworks (Full Stack)
 - <img width='25' height='25' src='https://img.stackshare.io/service/1209/javascript.jpeg' alt='JavaScript'/> [JavaScript](https://developer.mozilla.org/en-US/docs/Web/JavaScript) – Languages
@@ -29,14 +32,15 @@ maxgfr/github-change-json is built on the following main stack:
 - <img width='25' height='25' src='https://img.stackshare.io/service/11563/actions.png' alt='GitHub Actions'/> [GitHub Actions](https://github.com/features/actions) – Continuous Integration
 
 Full tech stack [here](/techstack.md)
---- Readme.md Snippet with images End ---
+
+&lt;--- Readme.md Snippet with images End ---&gt;
 -->
 <div align="center">
 
 # Tech Stack File
 ![](https://img.stackshare.io/repo.svg "repo") [maxgfr/github-change-json](https://github.com/maxgfr/github-change-json)![](https://img.stackshare.io/public_badge.svg "public")
 <br/><br/>
-|19<br/>Tools used|11/10/23 <br/>Report generated|
+|21<br/>Tools used|01/05/24 <br/>Report generated|
 |------|------|
 </div>
 
@@ -165,9 +169,9 @@ Full tech stack [here](/techstack.md)
 </table>
 
 
-## <img src='https://img.stackshare.io/group.svg' /> Open source packages (6)</h2>
+## <img src='https://img.stackshare.io/group.svg' /> Open source packages (8)</h2>
 
-## <img width='24' height='24' src='https://img.stackshare.io/service/1120/lejvzrnlpb308aftn31u.png'/> npm (6)
+## <img width='24' height='24' src='https://img.stackshare.io/service/1120/lejvzrnlpb308aftn31u.png'/> npm (8)
 
 |NAME|VERSION|LAST UPDATED|LAST UPDATED BY|LICENSE|VULNERABILITIES|
 |:------|:------|:------|:------|:------|:------|
@@ -175,10 +179,12 @@ Full tech stack [here](/techstack.md)
 |[@typescript-eslint/parser](https://www.npmjs.com/@typescript-eslint/parser)|v5.15.0|04/01/22|maxgfr |BSD-2-Clause|N/A|
 |[eslint-plugin-jest](https://www.npmjs.com/eslint-plugin-jest)|v26.1.3|04/25/22|Renovate Bot |MIT|N/A|
 |[eslint-plugin-prettier](https://www.npmjs.com/eslint-plugin-prettier)|v4.0.0|04/01/22|maxgfr |MIT|N/A|
+|[husky](https://www.npmjs.com/husky)|v7.0.4|03/12/22|maxgfr |MIT|N/A|
 |[js-yaml](https://www.npmjs.com/js-yaml)|v4.1.0|03/12/22|maxgfr |MIT|N/A|
+|[lint-staged](https://www.npmjs.com/lint-staged)|v12.3.7|04/01/22|maxgfr |MIT|N/A|
 |[ts-jest](https://www.npmjs.com/ts-jest)|v27.1.3|04/25/22|Renovate Bot |MIT|N/A|
 
 <br/>
 <div align='center'>
 
-Generated via [Stack File](https://github.com/apps/stack-file)
+Generated via [Stack File](https://github.com/marketplace/stack-file)
