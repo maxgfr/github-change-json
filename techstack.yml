@@ -2,7 +2,7 @@ repo_name: maxgfr/github-change-json
 report_id: a36a298d4493903397882c026d7492db
 version: 0.1
 repo_type: Public
-timestamp: '2024-01-05T08:56:20+00:00'
+timestamp: '2024-02-29T18:33:13+00:00'
 requested_by: maxgfr
 provider: github
 branch: main
@@ -93,7 +93,7 @@ tools:
   last_updated_by: maxgfr
   last_updated_on: 2022-03-12 15:36:38.000000000 Z
 - name: Prettier
-  description: 'Prettier is an opinionated code formatter. '
+  description: Prettier is an opinionated code formatter.
   website_url: https://prettier.io/
   version: 2.6.0
   license: MIT
