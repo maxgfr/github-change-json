@@ -10,7 +10,7 @@ jobs:
   action:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v5
       - name: Get commit sha
         run: |
           echo "GITHUB_SHA=${GITHUB_SHA}" >> $GITHUB_ENV
