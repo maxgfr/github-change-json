@@ -20,7 +20,7 @@ jobs:
   action:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Get commit sha
         run: |
           echo "GITHUB_SHA=${GITHUB_SHA}" >> $GITHUB_ENV
@@ -115,34 +115,40 @@ When `commit: true`:
 
 ## Development
 
+### Install
+
+```bash
+pnpm install
+```
+
 ### Build
 
 ```bash
-npm run build
+pnpm run build
 ```
 
 ### Test
 
 ```bash
-npm test
+pnpm test
 ```
 
 ### Lint
 
 ```bash
-npm run lint
+pnpm run lint
 ```
 
 ### Format
 
 ```bash
-npm run format
+pnpm run format
 ```
 
 ### All Checks
 
 ```bash
-npm run all
+pnpm run all
 ```
 
 ## License

@@ -21,20 +21,26 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
-      - name: Set Node.js 16.x
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node.js 20.x
         uses: actions/setup-node@v4
         with:
-          node-version: 16.x
+          node-version: 20.x
+          cache: 'pnpm'
 
       - name: Install dependencies
-        run: yarn --frozen-lockfile
+        run: pnpm install --frozen-lockfile
 
       - name: Rebuild the dist/ directory
         run: |
-          yarn build
-          yarn package
+          pnpm run build
+          pnpm run package
 
       - name: Compare the expected and actual dist/ directories
         run: |

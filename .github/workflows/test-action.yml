@@ -10,7 +10,7 @@ jobs:
   action:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Get commit sha
         run: |
           echo "GITHUB_SHA=${GITHUB_SHA}" >> $GITHUB_ENV
@@ -27,3 +27,13 @@ jobs:
           key: 'name'
           value: 'yo'
           path: ./example/package.json
+      - name: Verify modifications
+        run: |
+          echo "Checking package.json content..."
+          cat example/package.json
+          if grep -q '"name": "yo"' example/package.json; then
+            echo "✅ Action test PASSED"
+          else
+            echo "❌ Action test FAILED"
+            exit 1
+          fi
