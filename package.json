@@ -52,5 +52,5 @@
   },
   "lint-staged": {
     "*.ts": "pnpm run format --fix"
-  },
+  }
 }
