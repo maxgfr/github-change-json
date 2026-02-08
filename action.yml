@@ -5,13 +5,13 @@ branding:
   icon: bookmark
   color: red
 runs:
-  using: node12
+  using: node20
   main: dist/index.js
 
 inputs:
   path:
     required: true
-    description: Path to package.json
+    description: Path to the JSON file you want to update
   key:
     required: true
     description: Key that you want to modify in your json
@@ -20,4 +20,4 @@ inputs:
     description: Value linked to the key that you want to modify in your json
   commit:
     required: false
-    description: Print arguments used by this action.
+    description: Boolean flag to commit and push the changes to the repository

@@ -7,6 +7,7 @@
     "sourceType": "module",
     "project": "./tsconfig.json"
   },
+  "ignorePatterns": ["**/*.test.ts", "dist/", "lib/", "node_modules/"],
   "rules": {
     "i18n-text/no-en": "off",
     "eslint-comments/no-use": "off",

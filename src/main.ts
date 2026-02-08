@@ -1,16 +1,16 @@
 import * as core from '@actions/core'
 import * as exec from '@actions/exec'
-import {modifyPackageJson} from './utils'
+import {modifyJsonFile} from './utils'
 
 const run = async (): Promise<void> => {
   try {
     core.info('Setting input and environment variables')
-    const isCommit = core.getInput('commit')
-    const path = core.getInput('path', {required: true})
+    const isCommit = core.getBooleanInput('commit', {required: false})
+    const filePath = core.getInput('path', {required: true})
     const key = core.getInput('key', {required: true})
     const value = core.getInput('value', {required: true})
 
-    await modifyPackageJson(path, [{key, value}])
+    await modifyJsonFile(filePath, [{key, value}])
 
     if (isCommit) {
       core.info('Committing file changes')
@@ -18,23 +18,22 @@ const run = async (): Promise<void> => {
         'config',
         '--global',
         'user.name',
-        process.env.GITHUB_ACTOR ?? ''
+        process.env.GITHUB_ACTOR ?? 'github-actions[bot]'
       ])
       await exec.exec('git', [
         'config',
         '--global',
         'user.email',
-        `${process.env.GITHUB_ACTOR}@users.noreply.github.com`
+        `${process.env.GITHUB_ACTOR ?? 'github-actions'}@users.noreply.github.com`
       ])
       await exec.exec('git', [
         'commit',
         '-am',
-        `fix: update ${path} with ${key}=${value}`,
+        `chore: update ${filePath} with ${key}=${value}`,
         '--no-verify'
       ])
       await exec.exec('git', [
         'push',
-        '-f',
         '-u',
         'origin',
         `HEAD:${process.env.GITHUB_HEAD_REF || process.env.GITHUB_REF}`
@@ -43,9 +42,12 @@ const run = async (): Promise<void> => {
     } else {
       core.info('Skipping commit files')
     }
-  } catch (e: any) {
-    core.setFailed(e.message)
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : String(e)
+    core.setFailed(message)
   }
 }
+
+export {run}
 
 run()
