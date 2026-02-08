@@ -1,4 +1,6 @@
-# github-change-json [![View Action](https://img.shields.io/badge/view-github%20action-yellow.svg)](https://github.com/marketplace/actions/github-change-json) [![pipeline](https://img.shields.io/github/workflow/status/maxgfr/github-change-json/build-test)](https://github.com/maxgfr/github-change-json/actions/workflows/test-build.yml) [![Tests](https://img.shields.io/badge/tests-32%20passing-brightgreen)](https://github.com/maxgfr/github-change-json/actions/workflows/test-build.yml)
+# github-change-json 
+
+[![View Action](https://img.shields.io/badge/view-github%20action-yellow.svg)](https://github.com/marketplace/actions/github-change-json) [![Tests](https://img.shields.io/badge/tests-32%20passing-brightgreen)](https://github.com/maxgfr/github-change-json/actions/workflows/test-build.yml)
 
 `maxgfr/github-change-json` is a [GitHub Action](https://github.com/features/actions) which lets you change a value from a JSON file (e.g. `package.json`, `tsconfig.json`, or any other JSON file).
 
