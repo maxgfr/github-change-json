@@ -20,4 +20,6 @@ inputs:
     description: Value linked to the key that you want to modify in your json
   commit:
     required: false
+    type: boolean
     description: Boolean flag to commit and push the changes to the repository
+    default: false
