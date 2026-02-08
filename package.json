@@ -53,5 +53,4 @@
   "lint-staged": {
     "*.ts": "pnpm run format --fix"
   },
-  "packageManager": "pnpm@10.29.1"
 }
