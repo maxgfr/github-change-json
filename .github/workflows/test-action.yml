@@ -7,33 +7,497 @@ on:
       - 'releases/*'
 
 jobs:
-  action:
+  test-basic:
+    name: Basic key/value modification
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - name: Get commit sha
-        run: |
-          echo "GITHUB_SHA=${GITHUB_SHA}" >> $GITHUB_ENV
-      - name: Modify name of the package.json
+        run: echo "GITHUB_SHA=${GITHUB_SHA}" >> $GITHUB_ENV
+
+      - name: Modify name with commit
         uses: ./
         with:
           key: 'name'
           value: '@maxgfr/example-${{ env.GITHUB_SHA }}'
           path: example/package.json
           commit: true
-      - name: Modify name of the package.json locally
+
+      - name: Modify name locally
         uses: ./
         with:
           key: 'name'
           value: 'yo'
           path: ./example/package.json
-      - name: Verify modifications
+
+      - name: Verify basic modification
         run: |
-          echo "Checking package.json content..."
+          echo "=== package.json ==="
           cat example/package.json
           if grep -q '"name": "yo"' example/package.json; then
-            echo "✅ Action test PASSED"
+            echo "✅ Basic modification PASSED"
           else
-            echo "❌ Action test FAILED"
+            echo "❌ Basic modification FAILED"
+            exit 1
+          fi
+
+  test-nested-keys:
+    name: Nested key support
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Modify nested key in tsconfig
+        uses: ./
+        with:
+          key: 'compilerOptions.target'
+          value: 'ES2020'
+          path: example/tsconfig.json
+
+      - name: Verify nested key modification
+        run: |
+          echo "=== tsconfig.json ==="
+          cat example/tsconfig.json
+          if grep -q '"target": "ES2020"' example/tsconfig.json; then
+            echo "✅ Nested key PASSED"
+          else
+            echo "❌ Nested key FAILED"
+            exit 1
+          fi
+
+      - name: Verify comment is preserved
+        run: |
+          if grep -q '// Target ES6 for compatibility' example/tsconfig.json; then
+            echo "✅ Comment preserved PASSED"
+          else
+            echo "❌ Comment preserved FAILED"
+            exit 1
+          fi
+
+      - name: Verify other keys are untouched
+        run: |
+          if grep -q '"strict": true' example/tsconfig.json; then
+            echo "✅ Other keys preserved PASSED"
+          else
+            echo "❌ Other keys preserved FAILED"
+            exit 1
+          fi
+
+  test-deep-nested:
+    name: Deep nested key creation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Modify deep nested key in config
+        uses: ./
+        with:
+          key: 'database.host'
+          value: 'prod-db.example.com'
+          path: example/config.json
+
+      - name: Verify deep nested modification
+        run: |
+          echo "=== config.json ==="
+          cat example/config.json
+          if grep -q '"host": "prod-db.example.com"' example/config.json; then
+            echo "✅ Deep nested key PASSED"
+          else
+            echo "❌ Deep nested key FAILED"
+            exit 1
+          fi
+
+      - name: Verify sibling keys are untouched
+        run: |
+          if grep -q '"port": 5432' example/config.json; then
+            echo "✅ Sibling key preserved PASSED"
+          else
+            echo "❌ Sibling key preserved FAILED"
+            exit 1
+          fi
+
+  test-typed-values:
+    name: Type-aware values
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set number value
+        uses: ./
+        with:
+          key: 'port'
+          value: '8080'
+          type: 'number'
+          path: example/config.json
+
+      - name: Verify number type (no quotes around value)
+        run: |
+          echo "=== config.json ==="
+          cat example/config.json
+          if grep -q '"port": 8080' example/config.json; then
+            echo "✅ Number type PASSED"
+          else
+            echo "❌ Number type FAILED - value should not be quoted"
+            exit 1
+          fi
+
+      - name: Set boolean value
+        uses: ./
+        with:
+          key: 'debug'
+          value: 'true'
+          type: 'boolean'
+          path: example/config.json
+
+      - name: Verify boolean type
+        run: |
+          if grep -q '"debug": true' example/config.json; then
+            echo "✅ Boolean type PASSED"
+          else
+            echo "❌ Boolean type FAILED"
+            exit 1
+          fi
+
+      - name: Set JSON object value
+        uses: ./
+        with:
+          key: 'scripts'
+          value: '{"build":"tsc","test":"jest","lint":"eslint"}'
+          type: 'json'
+          path: example/package.json
+
+      - name: Verify JSON object value
+        run: |
+          echo "=== package.json ==="
+          cat example/package.json
+          node -e "
+            const pkg = require('./example/package.json');
+            if (pkg.scripts.build === 'tsc' && pkg.scripts.lint === 'eslint') {
+              console.log('✅ JSON type PASSED');
+            } else {
+              console.log('❌ JSON type FAILED');
+              process.exit(1);
+            }
+          "
+
+  test-delete:
+    name: Delete key
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Delete a key
+        uses: ./
+        with:
+          key: 'features.logging'
+          path: example/config.json
+          delete: true
+
+      - name: Verify key is deleted
+        run: |
+          echo "=== config.json ==="
+          cat example/config.json
+          if grep -q '"logging"' example/config.json; then
+            echo "❌ Delete FAILED - key still exists"
+            exit 1
+          else
+            echo "✅ Delete PASSED"
+          fi
+
+      - name: Verify sibling key is preserved
+        run: |
+          if grep -q '"auth": true' example/config.json; then
+            echo "✅ Sibling preserved after delete PASSED"
+          else
+            echo "❌ Sibling preserved after delete FAILED"
+            exit 1
+          fi
+
+  test-changes:
+    name: Bulk changes input
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Apply multiple changes at once
+        id: bulk
+        uses: ./
+        with:
+          path: example/package.json
+          changes: |
+            [
+              {"key": "name", "value": "@test/bulk-changes"},
+              {"key": "version", "value": "9.9.9"},
+              {"key": "private", "value": "true", "type": "boolean"},
+              {"key": "author", "delete": true}
+            ]
+
+      - name: Verify all changes applied
+        run: |
+          echo "=== package.json ==="
+          cat example/package.json
+          node -e "
+            const pkg = require('./example/package.json');
+            const checks = [
+              [pkg.name === '@test/bulk-changes', 'name changed'],
+              [pkg.version === '9.9.9', 'version changed'],
+              [pkg.private === true, 'private is boolean true'],
+              [pkg.author === undefined, 'author deleted'],
+            ];
+            let ok = true;
+            for (const [pass, desc] of checks) {
+              console.log(pass ? '✅ ' + desc : '❌ ' + desc);
+              if (!pass) ok = false;
+            }
+            if (!ok) process.exit(1);
+          "
+
+      - name: Verify old-value output is JSON for bulk changes
+        run: |
+          echo "old-value: ${{ steps.bulk.outputs.old-value }}"
+          if [ -n "${{ steps.bulk.outputs.old-value }}" ]; then
+            echo "✅ old-value output set PASSED"
+          else
+            echo "❌ old-value output set FAILED"
+            exit 1
+          fi
+
+  test-outputs:
+    name: Output values
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Modify and capture outputs
+        id: modify
+        uses: ./
+        with:
+          key: 'version'
+          value: '2.0.0'
+          path: example/package.json
+
+      - name: Verify old-value output
+        run: |
+          echo "old-value: '${{ steps.modify.outputs.old-value }}'"
+          if [ "${{ steps.modify.outputs.old-value }}" = "1.0.0" ]; then
+            echo "✅ old-value output PASSED"
+          else
+            echo "❌ old-value output FAILED (expected '1.0.0', got '${{ steps.modify.outputs.old-value }}')"
+            exit 1
+          fi
+
+      - name: Verify modified output is true
+        run: |
+          echo "modified: '${{ steps.modify.outputs.modified }}'"
+          if [ "${{ steps.modify.outputs.modified }}" = "true" ]; then
+            echo "✅ modified=true PASSED"
+          else
+            echo "❌ modified=true FAILED"
+            exit 1
+          fi
+
+      - name: Set same value again
+        id: noop
+        uses: ./
+        with:
+          key: 'version'
+          value: '2.0.0'
+          path: example/package.json
+
+      - name: Verify modified output is false for no-op
+        run: |
+          echo "modified: '${{ steps.noop.outputs.modified }}'"
+          if [ "${{ steps.noop.outputs.modified }}" = "false" ]; then
+            echo "✅ modified=false PASSED"
+          else
+            echo "❌ modified=false FAILED"
+            exit 1
+          fi
+
+  test-dry-run:
+    name: Dry-run mode
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get content before
+        id: before
+        run: echo "content=$(cat example/package.json | md5sum | cut -d' ' -f1)" >> $GITHUB_OUTPUT
+
+      - name: Run in dry-run mode
+        id: dryrun
+        uses: ./
+        with:
+          key: 'name'
+          value: 'should-not-appear'
+          path: example/package.json
+          dry-run: true
+
+      - name: Verify file was NOT modified
+        run: |
+          AFTER=$(cat example/package.json | md5sum | cut -d' ' -f1)
+          echo "Before: ${{ steps.before.outputs.content }}"
+          echo "After:  $AFTER"
+          if [ "${{ steps.before.outputs.content }}" = "$AFTER" ]; then
+            echo "✅ Dry-run did not modify file PASSED"
+          else
+            echo "❌ Dry-run modified the file FAILED"
+            exit 1
+          fi
+
+      - name: Verify outputs are still set in dry-run
+        run: |
+          if [ -n "${{ steps.dryrun.outputs.old-value }}" ]; then
+            echo "✅ Dry-run old-value output PASSED"
+          else
+            echo "❌ Dry-run old-value output FAILED"
+            exit 1
+          fi
+
+  test-formatting:
+    name: Formatting preservation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Modify config with 4-space indentation
+        uses: ./
+        with:
+          key: 'debug'
+          value: 'true'
+          type: 'boolean'
+          path: example/config.json
+
+      - name: Verify 4-space indentation is preserved
+        run: |
+          echo "=== config.json ==="
+          cat example/config.json
+          if grep -qP '^    "debug": true' example/config.json; then
+            echo "✅ 4-space indentation preserved PASSED"
+          else
+            echo "❌ 4-space indentation preserved FAILED"
+            cat -A example/config.json | head -5
+            exit 1
+          fi
+
+      - name: Verify trailing newline is preserved
+        run: |
+          if [ "$(tail -c 1 example/config.json | wc -l)" -eq 1 ]; then
+            echo "✅ Trailing newline preserved PASSED"
+          else
+            echo "❌ Trailing newline preserved FAILED"
+            exit 1
+          fi
+
+  test-jsonc:
+    name: JSONC support
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Modify JSONC file (tsconfig with comments)
+        uses: ./
+        with:
+          key: 'compilerOptions.module'
+          value: 'ESNext'
+          path: example/tsconfig.json
+
+      - name: Verify modification
+        run: |
+          echo "=== tsconfig.json ==="
+          cat example/tsconfig.json
+          if grep -q '"module": "ESNext"' example/tsconfig.json; then
+            echo "✅ JSONC modification PASSED"
+          else
+            echo "❌ JSONC modification FAILED"
+            exit 1
+          fi
+
+      - name: Verify all comments are preserved
+        run: |
+          if grep -q '// Target ES6 for compatibility' example/tsconfig.json; then
+            echo "✅ JSONC comments preserved PASSED"
+          else
+            echo "❌ JSONC comments preserved FAILED"
+            exit 1
+          fi
+
+  test-error-handling:
+    name: Error handling
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Should fail on non-existent file
+        id: missing
+        uses: ./
+        with:
+          key: 'name'
+          value: 'test'
+          path: example/nonexistent.json
+        continue-on-error: true
+
+      - name: Verify failure on missing file
+        run: |
+          if [ "${{ steps.missing.outcome }}" = "failure" ]; then
+            echo "✅ Missing file error PASSED"
+          else
+            echo "❌ Missing file error FAILED (expected failure)"
+            exit 1
+          fi
+
+      - name: Should fail on invalid type
+        id: badtype
+        uses: ./
+        with:
+          key: 'name'
+          value: 'test'
+          type: 'integer'
+          path: example/package.json
+        continue-on-error: true
+
+      - name: Verify failure on invalid type
+        run: |
+          if [ "${{ steps.badtype.outcome }}" = "failure" ]; then
+            echo "✅ Invalid type error PASSED"
+          else
+            echo "❌ Invalid type error FAILED (expected failure)"
+            exit 1
+          fi
+
+      - name: Should fail on invalid number conversion
+        id: badnum
+        uses: ./
+        with:
+          key: 'port'
+          value: 'not-a-number'
+          type: 'number'
+          path: example/package.json
+        continue-on-error: true
+
+      - name: Verify failure on invalid number
+        run: |
+          if [ "${{ steps.badnum.outcome }}" = "failure" ]; then
+            echo "✅ Invalid number error PASSED"
+          else
+            echo "❌ Invalid number error FAILED (expected failure)"
+            exit 1
+          fi
+
+      - name: Should fail when key is missing
+        id: nokey
+        uses: ./
+        with:
+          value: 'test'
+          path: example/package.json
+        continue-on-error: true
+
+      - name: Verify failure on missing key
+        run: |
+          if [ "${{ steps.nokey.outcome }}" = "failure" ]; then
+            echo "✅ Missing key error PASSED"
+          else
+            echo "❌ Missing key error FAILED (expected failure)"
             exit 1
           fi
