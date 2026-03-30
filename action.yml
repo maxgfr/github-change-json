@@ -13,13 +13,34 @@ inputs:
     required: true
     description: Path to the JSON file you want to update
   key:
-    required: true
-    description: Key that you want to modify in your json
+    required: false
+    description: Key to modify (supports dot notation for nested keys, e.g. "compilerOptions.target")
   value:
-    required: true
-    description: Value linked to the key that you want to modify in your json
+    required: false
+    description: Value to set for the key
+  type:
+    required: false
+    description: 'Type of the value: string (default), number, boolean, or json'
+    default: 'string'
   commit:
     required: false
     type: boolean
     description: Boolean flag to commit and push the changes to the repository
     default: false
+  delete:
+    required: false
+    type: boolean
+    description: Delete the specified key instead of setting a value
+    default: false
+  dry-run:
+    required: false
+    type: boolean
+    description: Preview changes without modifying the file
+    default: false
+  changes:
+    required: false
+    description: 'JSON array of changes to apply. Each item: {"key": "...", "value": "...", "type": "...", "delete": true/false}. Overrides key/value/type/delete inputs.'
+
+outputs:
+  old-value:
+    description: The previous value of the modified key (string for single key, JSON object for multiple keys)

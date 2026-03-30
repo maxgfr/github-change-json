@@ -1,6 +1,6 @@
 #!/bin/sh
 . "$(dirname "$0")/_/husky.sh"
 
-yarn all
+pnpm run all
 git add dist/
-yarn lint-staged
+pnpm lint-staged
