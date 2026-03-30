@@ -87,12 +87,15 @@ describe('main', () => {
       if (name === 'value') return 'test-value'
       if (name === 'type') return 'string'
       if (name === 'changes') return ''
+      if (name === 'schema') return ''
       return ''
     })
     mockGetBooleanInput.mockImplementation(name => {
       if (name === 'commit') return false
       if (name === 'delete') return false
       if (name === 'dry-run') return false
+      if (name === 'merge') return false
+      if (name === 'create-if-missing') return false
       return false
     })
     mockExec.mockResolvedValue(0)
@@ -155,7 +158,7 @@ describe('main', () => {
       expect(mockExec).toHaveBeenCalledWith('git', [
         'commit',
         '-am',
-        expect.stringContaining('update test.json with name=test-value'),
+        expect.stringContaining('update test.json (set name=test-value)'),
         '--no-verify'
       ])
     })
@@ -356,7 +359,7 @@ describe('main', () => {
       await run()
 
       expect(mockSetFailed).toHaveBeenCalledWith(
-        expect.stringContaining("must have a 'value' or 'delete: true'")
+        expect.stringContaining("must have a 'value'")
       )
     })
 
@@ -383,7 +386,7 @@ describe('main', () => {
       await run()
 
       expect(mockSetFailed).toHaveBeenCalledWith(
-        expect.stringContaining("must have a 'value' or 'delete: true'")
+        expect.stringContaining("must have a 'value'")
       )
     })
 
@@ -412,6 +415,129 @@ describe('main', () => {
 
       expect(mockSetFailed).not.toHaveBeenCalled()
       expect(fs.writeFile).toHaveBeenCalled()
+    })
+  })
+
+  describe('merge mode', () => {
+    it('should pass merge flag in single-key mode', async () => {
+      mockGetInput.mockImplementation(name => {
+        if (name === 'path') return 'test.json'
+        if (name === 'key') return 'scripts'
+        if (name === 'value') return '{"start": "node ."}'
+        if (name === 'type') return 'string'
+        if (name === 'changes') return ''
+        if (name === 'schema') return ''
+        return ''
+      })
+      mockGetBooleanInput.mockImplementation(name => {
+        if (name === 'merge') return true
+        if (name === 'commit') return false
+        if (name === 'delete') return false
+        if (name === 'dry-run') return false
+        return false
+      })
+
+      await run()
+
+      expect(mockSetFailed).not.toHaveBeenCalled()
+    })
+
+    it('should fail when merge is true but value is missing', async () => {
+      mockGetInput.mockImplementation(name => {
+        if (name === 'path') return 'test.json'
+        if (name === 'key') return 'scripts'
+        if (name === 'value') return ''
+        if (name === 'type') return 'string'
+        if (name === 'changes') return ''
+        if (name === 'schema') return ''
+        return ''
+      })
+      mockGetBooleanInput.mockImplementation(name => {
+        if (name === 'merge') return true
+        if (name === 'commit') return false
+        if (name === 'delete') return false
+        if (name === 'dry-run') return false
+        return false
+      })
+
+      await run()
+
+      expect(mockSetFailed).toHaveBeenCalledWith(
+        expect.stringContaining("'value' input is required for merge")
+      )
+    })
+
+    it('should accept merge in changes array', async () => {
+      mockGetInput.mockImplementation(name => {
+        if (name === 'path') return 'test.json'
+        if (name === 'changes')
+          return JSON.stringify([
+            {key: 'scripts', value: '{"start":"node ."}', merge: true}
+          ])
+        return ''
+      })
+
+      await run()
+
+      expect(mockSetFailed).not.toHaveBeenCalled()
+    })
+
+    it('should fail when merge change has no value', async () => {
+      mockGetInput.mockImplementation(name => {
+        if (name === 'path') return 'test.json'
+        if (name === 'changes')
+          return JSON.stringify([{key: 'scripts', merge: true}])
+        return ''
+      })
+
+      await run()
+
+      expect(mockSetFailed).toHaveBeenCalledWith(
+        expect.stringContaining('with merge requires')
+      )
+    })
+  })
+
+  describe('schema input', () => {
+    it('should not pass schema when empty', async () => {
+      mockGetInput.mockImplementation(name => {
+        if (name === 'path') return 'test.json'
+        if (name === 'key') return 'name'
+        if (name === 'value') return 'test-value'
+        if (name === 'type') return 'string'
+        if (name === 'changes') return ''
+        if (name === 'schema') return ''
+        return ''
+      })
+
+      await run()
+
+      expect(mockSetFailed).not.toHaveBeenCalled()
+    })
+
+    it('should fail when schema file is not found', async () => {
+      mockGetInput.mockImplementation(name => {
+        if (name === 'path') return 'test.json'
+        if (name === 'key') return 'name'
+        if (name === 'value') return 'test-value'
+        if (name === 'type') return 'string'
+        if (name === 'changes') return ''
+        if (name === 'schema') return 'nonexistent.schema.json'
+        return ''
+      })
+      ;(fs.access as jest.MockedFunction<typeof fs.access>).mockImplementation(
+        async (p: any) => {
+          if (String(p).includes('schema')) {
+            throw new Error('ENOENT')
+          }
+        }
+      )
+
+      await run()
+
+      expect(mockSetFailed).toHaveBeenCalledWith(
+        expect.stringContaining('Schema file not found')
+      )
     })
   })
 
@@ -632,9 +758,154 @@ describe('main', () => {
       expect(mockExec).toHaveBeenCalledWith('git', [
         'commit',
         '-am',
-        'chore: update test.json with delete devDependencies',
+        'chore: update test.json (delete devDependencies)',
         '--no-verify'
       ])
+    })
+
+    it('should truncate long values in commit message', async () => {
+      const longValue = 'a'.repeat(200)
+      mockGetInput.mockImplementation(name => {
+        if (name === 'path') return 'test.json'
+        if (name === 'key') return 'name'
+        if (name === 'value') return longValue
+        if (name === 'type') return 'string'
+        if (name === 'changes') return ''
+        return ''
+      })
+
+      await run()
+
+      const commitCall = mockExec.mock.calls.find(
+        c => c[1]?.[0] === 'commit'
+      )
+      const msg = commitCall?.[1]?.[2] as string
+      expect(msg.length).toBeLessThan(120)
+      expect(msg).toContain('...')
+    })
+  })
+
+  describe('new-value output', () => {
+    it('should set new-value output for single key', async () => {
+      await run()
+
+      expect(mockSetOutput).toHaveBeenCalledWith('new-value', 'test-value')
+    })
+
+    it('should set new-value as JSON for multiple changes', async () => {
+      mockGetInput.mockImplementation(name => {
+        if (name === 'path') return 'test.json'
+        if (name === 'changes')
+          return JSON.stringify([
+            {key: 'name', value: 'new-name'},
+            {key: 'version', value: '2.0.0'}
+          ])
+        return ''
+      })
+
+      await run()
+
+      expect(mockSetOutput).toHaveBeenCalledWith(
+        'new-value',
+        expect.any(String)
+      )
+      const call = mockSetOutput.mock.calls.find(c => c[0] === 'new-value')
+      const parsed = JSON.parse(call![1])
+      expect(parsed.name).toBe('new-name')
+      expect(parsed.version).toBe('2.0.0')
+    })
+  })
+
+  describe('conflicting flags', () => {
+    it('should fail when delete and merge are both true (single-key)', async () => {
+      mockGetInput.mockImplementation(name => {
+        if (name === 'path') return 'test.json'
+        if (name === 'key') return 'scripts'
+        if (name === 'value') return '{"a":1}'
+        if (name === 'type') return 'string'
+        if (name === 'changes') return ''
+        if (name === 'schema') return ''
+        return ''
+      })
+      mockGetBooleanInput.mockImplementation(name => {
+        if (name === 'delete') return true
+        if (name === 'merge') return true
+        if (name === 'commit') return false
+        if (name === 'dry-run') return false
+        if (name === 'create-if-missing') return false
+        return false
+      })
+
+      await run()
+
+      expect(mockSetFailed).toHaveBeenCalledWith(
+        expect.stringContaining("'delete' and 'merge' cannot both be true")
+      )
+    })
+
+    it('should fail when delete and merge are both true (changes)', async () => {
+      mockGetInput.mockImplementation(name => {
+        if (name === 'path') return 'test.json'
+        if (name === 'changes')
+          return JSON.stringify([
+            {key: 'scripts', value: '{}', delete: true, merge: true}
+          ])
+        return ''
+      })
+
+      await run()
+
+      expect(mockSetFailed).toHaveBeenCalledWith(
+        expect.stringContaining("'delete' and 'merge' cannot both be true")
+      )
+    })
+  })
+
+  describe('changes value type validation', () => {
+    it('should fail when change value is a number instead of string', async () => {
+      mockGetInput.mockImplementation(name => {
+        if (name === 'path') return 'test.json'
+        if (name === 'changes') return '[{"key": "port", "value": 3000}]'
+        return ''
+      })
+
+      await run()
+
+      expect(mockSetFailed).toHaveBeenCalledWith(
+        expect.stringContaining("'value' must be a string")
+      )
+    })
+
+    it('should fail when change value is a boolean instead of string', async () => {
+      mockGetInput.mockImplementation(name => {
+        if (name === 'path') return 'test.json'
+        if (name === 'changes')
+          return '[{"key": "debug", "value": true}]'
+        return ''
+      })
+
+      await run()
+
+      expect(mockSetFailed).toHaveBeenCalledWith(
+        expect.stringContaining("'value' must be a string")
+      )
+    })
+  })
+
+  describe('create-if-missing', () => {
+    it('should pass createIfMissing option through', async () => {
+      mockGetBooleanInput.mockImplementation(name => {
+        if (name === 'create-if-missing') return true
+        if (name === 'commit') return false
+        if (name === 'delete') return false
+        if (name === 'dry-run') return false
+        if (name === 'merge') return false
+        return false
+      })
+
+      await run()
+
+      expect(mockSetFailed).not.toHaveBeenCalled()
     })
   })
 })

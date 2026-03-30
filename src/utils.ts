@@ -7,6 +7,7 @@ import {
   type FormattingOptions,
   type ParseError
 } from 'jsonc-parser'
+import Ajv from 'ajv'
 import fs from 'fs/promises'
 import path from 'path'
 
@@ -15,6 +16,7 @@ export interface ModifyProperty {
   value?: string
   type?: 'string' | 'number' | 'boolean' | 'json'
   delete?: boolean
+  merge?: boolean
 }
 
 export interface ModifyResult {
@@ -30,17 +32,18 @@ export interface ModifyFileResult {
 
 export interface ModifyOptions {
   dryRun?: boolean
+  schema?: string
+  createIfMissing?: boolean
 }
+
+const VALID_TYPES = ['string', 'number', 'boolean', 'json'] as const
+
+const SCHEMA_FETCH_TIMEOUT_MS = 30_000
 
 /**
  * Parses a string value into the appropriate type.
  */
-const VALID_TYPES = ['string', 'number', 'boolean', 'json'] as const
-
-export function parseValue(
-  value: string,
-  type?: string
-): unknown {
+export function parseValue(value: string, type?: string): unknown {
   if (type && !VALID_TYPES.includes(type as (typeof VALID_TYPES)[number])) {
     throw new Error(
       `Invalid type: '${type}'. Expected one of: ${VALID_TYPES.join(', ')}`
@@ -51,7 +54,7 @@ export function parseValue(
       if (value.trim() === '')
         throw new Error(`Invalid number value: ${value}`)
       const num = Number(value)
-      if (isNaN(num))
+      if (!isFinite(num))
         throw new Error(`Invalid number value: ${value}`)
       return num
     }
@@ -76,29 +79,34 @@ export function parseValue(
 /**
  * Converts a dot-notation key to a JSON path array.
  * Supports escaping dots with backslash: "my\\.key" → ["my.key"]
+ * Purely numeric segments are treated as array indices.
  */
-export function keyToPath(key: string): string[] {
-  const segments: string[] = []
+export function keyToPath(key: string): (string | number)[] {
+  const rawSegments: string[] = []
   let current = ''
   for (let i = 0; i < key.length; i++) {
     if (key[i] === '\\' && i + 1 < key.length && key[i + 1] === '.') {
       current += '.'
       i++
     } else if (key[i] === '.') {
-      segments.push(current)
+      rawSegments.push(current)
       current = ''
     } else {
       current += key[i]
     }
   }
-  segments.push(current)
-  return segments
+  rawSegments.push(current)
+
+  return rawSegments.map(s => (/^\d+$/.test(s) ? parseInt(s, 10) : s))
 }
 
 /**
- * Gets a nested value from an object using a path array.
+ * Gets a nested value from an object/array using a path array.
  */
-function getNestedValue(obj: unknown, segments: string[]): unknown {
+function getNestedValue(
+  obj: unknown,
+  segments: (string | number)[]
+): unknown {
   let current: unknown = obj
   for (const segment of segments) {
     if (
@@ -108,9 +116,110 @@ function getNestedValue(obj: unknown, segments: string[]): unknown {
     ) {
       return undefined
     }
-    current = (current as Record<string, unknown>)[segment]
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    current = (current as any)[segment]
   }
   return current
+}
+
+/**
+ * Deep merges source into target. Objects are recursively merged,
+ * arrays and primitives from source overwrite target.
+ */
+export function deepMerge(target: unknown, source: unknown): unknown {
+  if (
+    typeof target === 'object' &&
+    target !== null &&
+    !Array.isArray(target) &&
+    typeof source === 'object' &&
+    source !== null &&
+    !Array.isArray(source)
+  ) {
+    const result: Record<string, unknown> = {
+      ...(target as Record<string, unknown>)
+    }
+    for (const [key, value] of Object.entries(
+      source as Record<string, unknown>
+    )) {
+      result[key] = deepMerge(result[key], value)
+    }
+    return result
+  }
+  return source
+}
+
+/**
+ * Validates JSON content against a JSON Schema.
+ * @param content - The JSON/JSONC content string to validate
+ * @param schemaSource - Path to a local schema file or a URL
+ */
+export async function validateJsonSchema(
+  content: string,
+  schemaSource: string
+): Promise<void> {
+  const data = parse(content, undefined, {allowTrailingComma: true})
+
+  let schema: object
+  if (
+    schemaSource.startsWith('http://') ||
+    schemaSource.startsWith('https://')
+  ) {
+    const controller = new AbortController()
+    const timeout = setTimeout(
+      () => controller.abort(),
+      SCHEMA_FETCH_TIMEOUT_MS
+    )
+    try {
+      const response = await fetch(schemaSource, {
+        signal: controller.signal
+      })
+      if (!response.ok) {
+        throw new Error(
+          `Failed to fetch schema from ${schemaSource}: ${response.statusText}`
+        )
+      }
+      schema = (await response.json()) as object
+    } catch (e) {
+      if (e instanceof DOMException && e.name === 'AbortError') {
+        throw new Error(
+          `Schema fetch timed out after ${SCHEMA_FETCH_TIMEOUT_MS / 1000}s: ${schemaSource}`
+        )
+      }
+      throw e
+    } finally {
+      clearTimeout(timeout)
+    }
+  } else {
+    const schemaPath = path.resolve(process.cwd(), schemaSource)
+    try {
+      await fs.access(schemaPath)
+    } catch {
+      throw new Error(`Schema file not found: ${schemaPath}`)
+    }
+    const schemaContent = await fs.readFile(schemaPath, 'utf8')
+    try {
+      schema = JSON.parse(schemaContent)
+    } catch {
+      throw new Error(`Invalid JSON in schema file: ${schemaPath}`)
+    }
+  }
+
+  const ajv = new Ajv({allErrors: true})
+  let validate: ReturnType<typeof ajv.compile>
+  try {
+    validate = ajv.compile(schema)
+  } catch (e) {
+    throw new Error(
+      `Invalid JSON Schema: ${e instanceof Error ? e.message : String(e)}`
+    )
+  }
+
+  if (!validate(data)) {
+    const errors = validate
+      .errors!.map(e => `  - ${e.instancePath || '/'}: ${e.message}`)
+      .join('\n')
+    throw new Error(`Schema validation failed:\n${errors}`)
+  }
 }
 
 /**
@@ -142,12 +251,6 @@ export function detectFormatting(content: string): FormattingOptions {
 /**
  * Modifies a JSON or JSONC file with the given properties.
  * Preserves comments, formatting, indentation, and trailing newlines.
- *
- * @param fileName - Path to the JSON file (relative to current working directory)
- * @param properties - Array of modifications to apply
- * @param options - Optional settings (dryRun)
- * @returns Array of results with old and new values
- * @throws Error if file doesn't exist, cannot be read, or contains invalid JSON
  */
 export async function modifyJsonFile(
   fileName: string,
@@ -156,9 +259,18 @@ export async function modifyJsonFile(
 ): Promise<ModifyFileResult> {
   const filePath = path.resolve(process.cwd(), fileName)
 
+  let fileExists = true
   try {
     await fs.access(filePath)
   } catch {
+    fileExists = false
+  }
+
+  if (!fileExists && options?.createIfMissing) {
+    core.info(`File not found, creating: ${filePath}`)
+    await fs.mkdir(path.dirname(filePath), {recursive: true})
+    await fs.writeFile(filePath, '{}\n', 'utf8')
+  } else if (!fileExists) {
     throw new Error(`File not found: ${filePath}`)
   }
 
@@ -202,6 +314,40 @@ export async function modifyJsonFile(
         )
       }
       results.push({key: prop.key, oldValue, newValue: undefined})
+    } else if (prop.merge) {
+      if (prop.value === undefined) {
+        throw new Error(`Value is required for merge on key: ${prop.key}`)
+      }
+      let mergeValue: unknown
+      try {
+        mergeValue = JSON.parse(prop.value)
+      } catch {
+        throw new Error(
+          `Merge requires a valid JSON value for key: ${prop.key}`
+        )
+      }
+      if (
+        typeof mergeValue !== 'object' ||
+        mergeValue === null ||
+        Array.isArray(mergeValue)
+      ) {
+        throw new Error(
+          `Merge requires a JSON object value for key: ${prop.key}`
+        )
+      }
+      core.info(`Merging into ${prop.key}`)
+      const merged = deepMerge(oldValue, mergeValue)
+      try {
+        const edits = modify(modifiedContent, jsonPath, merged, {
+          formattingOptions
+        })
+        modifiedContent = applyEdits(modifiedContent, edits)
+      } catch (e) {
+        throw new Error(
+          `Failed to merge '${prop.key}': ${e instanceof Error ? e.message : String(e)}`
+        )
+      }
+      results.push({key: prop.key, oldValue, newValue: merged})
     } else {
       if (prop.value === undefined) {
         throw new Error(`Value is required for key: ${prop.key}`)
@@ -225,6 +371,13 @@ export async function modifyJsonFile(
   }
 
   const modified = content !== modifiedContent
+
+  // Schema validation (before writing)
+  if (options?.schema) {
+    core.info(`Validating against schema: ${options.schema}`)
+    await validateJsonSchema(modifiedContent, options.schema)
+    core.info('Schema validation passed')
+  }
 
   if (options?.dryRun) {
     core.info(`[Dry run] Would update ${fileName}`)

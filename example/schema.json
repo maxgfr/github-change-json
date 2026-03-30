@@ -1,0 +1,30 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": ["name", "version"],
+  "properties": {
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "description": {
+      "type": "string"
+    },
+    "main": {
+      "type": "string"
+    },
+    "scripts": {
+      "type": "object"
+    },
+    "author": {
+      "type": "string"
+    },
+    "license": {
+      "type": "string"
+    }
+  }
+}

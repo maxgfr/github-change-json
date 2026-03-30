@@ -14,7 +14,7 @@ inputs:
     description: Path to the JSON file you want to update
   key:
     required: false
-    description: Key to modify (supports dot notation for nested keys, e.g. "compilerOptions.target")
+    description: Key to modify (supports dot notation for nested keys, e.g. "compilerOptions.target". Numeric segments are array indices, e.g. "items.0.name")
   value:
     required: false
     description: Value to set for the key
@@ -32,17 +32,32 @@ inputs:
     type: boolean
     description: Delete the specified key instead of setting a value
     default: false
+  merge:
+    required: false
+    type: boolean
+    description: Deep merge a JSON object into the existing value instead of replacing it
+    default: false
   dry-run:
     required: false
     type: boolean
     description: Preview changes without modifying the file
     default: false
+  create-if-missing:
+    required: false
+    type: boolean
+    description: Create the file with an empty JSON object if it does not exist
+    default: false
   changes:
     required: false
-    description: 'JSON array of changes to apply. Each item: {"key": "...", "value": "...", "type": "...", "delete": true/false}. Overrides key/value/type/delete inputs.'
+    description: 'JSON array of changes to apply. Each item: {"key": "...", "value": "...", "type": "...", "delete": true/false, "merge": true/false}. Overrides key/value/type/delete/merge inputs.'
+  schema:
+    required: false
+    description: Path or URL to a JSON Schema file to validate the result against. Validation runs before writing.
 
 outputs:
   old-value:
     description: The previous value of the modified key (string for single key, JSON object for multiple keys)
+  new-value:
+    description: The new value that was set (string for single key, JSON object for multiple keys)
   modified:
     description: Whether the file content was actually changed ('true' or 'false')

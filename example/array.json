@@ -1,0 +1,7 @@
+{
+  "tags": ["alpha", "beta", "stable"],
+  "contributors": [
+    {"name": "Alice", "role": "maintainer"},
+    {"name": "Bob", "role": "contributor"}
+  ]
+}

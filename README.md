@@ -1,153 +1,158 @@
 # github-change-json
 
-[![View Action](https://img.shields.io/badge/view-github%20action-yellow.svg)](https://github.com/marketplace/actions/github-change-json) [![Tests](https://img.shields.io/badge/tests-passing-brightgreen)](https://github.com/maxgfr/github-change-json/actions/workflows/test-build.yml)
+[![View Action](https://img.shields.io/badge/view-github%20action-yellow.svg)](https://github.com/marketplace/actions/github-change-json) [![Tests](https://img.shields.io/badge/tests-165%20passing-brightgreen)](https://github.com/maxgfr/github-change-json/actions/workflows/test-build.yml) [![Integration](https://img.shields.io/badge/integration-16%20jobs-blue)](https://github.com/maxgfr/github-change-json/actions/workflows/test-action.yml)
 
-`maxgfr/github-change-json` is a [GitHub Action](https://github.com/features/actions) which lets you change values in a JSON or JSONC file (e.g. `package.json`, `tsconfig.json`, or any other JSON file).
+A [GitHub Action](https://github.com/features/actions) to modify values in JSON and JSONC files during workflows. Supports nested keys, typed values, deep merge, array indices, schema validation, and more.
 
 ## Why
 
-Sometimes you need to update a `.json` file in your project during a workflow. For example, when you want to deploy a package to GitHub Packages and npm packages with a different name for each package (e.g. `@maxgfr/package-name` for GitHub Packages and `package-name` for npm packages) or you want to publish a create-react-app to GitHub Pages by modifying the `homepage` prop such as [here](https://github.com/maxgfr/release-notes-finder/blob/main/.github/workflows/pages.yml#L27-L32). The purpose of this action is to handle this kind of situation by updating your `.json` file directly during the workflow without having to manually edit it.
+Sometimes you need to update a `.json` file during a CI/CD workflow:
 
-## Usage
+- Publish the same package to GitHub Packages (`@myorg/pkg`) and npm (`pkg`) with different names
+- Bump a version number during a release
+- Update a `tsconfig.json` compiler option before deployment
+- Set the `homepage` field for GitHub Pages
 
-### Basic Example
+This action handles all of these by modifying your JSON file in-place, preserving formatting and comments.
 
-```yaml
-name: 'action-test'
-on:
-  pull_request:
-  push:
-
-jobs:
-  action:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Get commit sha
-        run: |
-          echo "GITHUB_SHA=${GITHUB_SHA}" >> $GITHUB_ENV
-      - name: Modify name of the package.json
-        uses: maxgfr/github-change-json@main
-        with:
-          key: 'name'
-          value: '@maxgfr/example-${{ env.GITHUB_SHA }}'
-          path: example/package.json
-          commit: true # it will commit the change
-      - name: Modify name of the package.json locally
-        uses: maxgfr/github-change-json@main
-        with:
-          key: 'name'
-          value: 'yo'
-          path: ./example/package.json
-```
-
-### Use Cases
-
-#### 1. Scoped Package Names for Different Registries
+## Quick Start
 
 ```yaml
-- name: Update package name for GitHub Packages
-  uses: maxgfr/github-change-json@main
-  with:
-    key: 'name'
-    value: '@my-org/my-package'
-    path: package.json
-    commit: false
-```
-
-#### 2. Update Version Number
-
-```yaml
-- name: Bump version
-  uses: maxgfr/github-change-json@main
+- uses: maxgfr/github-change-json@main
   with:
     key: 'version'
     value: '2.0.0'
     path: package.json
-    commit: true
 ```
 
-#### 3. Modify Nested TypeScript Configuration
+## Examples
 
-Dot notation is supported for nested keys:
+### Nested Keys (dot notation)
 
 ```yaml
-- name: Update TypeScript target
-  uses: maxgfr/github-change-json@main
+- uses: maxgfr/github-change-json@main
   with:
     key: 'compilerOptions.target'
     value: 'ES2020'
     path: tsconfig.json
 ```
 
-This also works with JSONC files (tsconfig.json with comments) - comments are preserved.
+Works with JSONC files (e.g. `tsconfig.json` with comments) -- comments are preserved.
 
-#### 4. Set Typed Values
+### Typed Values
 
-By default, values are stored as strings. Use the `type` input to set numbers, booleans, or JSON objects:
+By default values are strings. Use `type` for numbers, booleans, or JSON objects:
 
 ```yaml
-- name: Set port as a number
-  uses: maxgfr/github-change-json@main
+- uses: maxgfr/github-change-json@main
   with:
     key: 'port'
     value: '3000'
-    type: 'number'
+    type: 'number'    # stored as 3000, not "3000"
     path: config.json
 
-- name: Enable a flag as boolean
-  uses: maxgfr/github-change-json@main
+- uses: maxgfr/github-change-json@main
   with:
     key: 'compilerOptions.strict'
     value: 'true'
-    type: 'boolean'
+    type: 'boolean'   # stored as true, not "true"
     path: tsconfig.json
 
-- name: Set a JSON object
-  uses: maxgfr/github-change-json@main
+- uses: maxgfr/github-change-json@main
   with:
     key: 'scripts'
     value: '{"build": "tsc", "test": "jest"}'
-    type: 'json'
+    type: 'json'      # stored as an object, not a string
     path: package.json
 ```
 
-#### 5. Delete a Key
+### Array Indices
+
+Numeric path segments are treated as array indices:
 
 ```yaml
-- name: Remove devDependencies before publish
-  uses: maxgfr/github-change-json@main
+- uses: maxgfr/github-change-json@main
+  with:
+    key: 'contributors.0.name'    # first element of the array
+    value: 'Alicia'
+    path: package.json
+```
+
+### Deep Merge
+
+Merge new keys into an existing object without overwriting untouched keys:
+
+```yaml
+- uses: maxgfr/github-change-json@main
+  with:
+    key: 'scripts'
+    value: '{"start": "node .", "deploy": "fly deploy"}'
+    merge: true
+    path: package.json
+# {"build":"tsc","test":"jest"} + merge → {"build":"tsc","test":"jest","start":"node .","deploy":"fly deploy"}
+```
+
+Nested objects are recursively merged; arrays and primitives are replaced.
+
+### Delete a Key
+
+```yaml
+- uses: maxgfr/github-change-json@main
   with:
     key: 'devDependencies'
     path: package.json
     delete: true
-    commit: true
 ```
 
-#### 6. Multiple Changes in a Single Step
-
-Use the `changes` input to apply multiple modifications at once:
+### Multiple Changes at Once
 
 ```yaml
-- name: Update multiple fields
-  uses: maxgfr/github-change-json@main
+- uses: maxgfr/github-change-json@main
   with:
     path: package.json
     changes: |
       [
         {"key": "name", "value": "@my-org/my-package"},
         {"key": "version", "value": "2.0.0"},
-        {"key": "private", "value": "false", "type": "boolean"},
+        {"key": "private", "value": "true", "type": "boolean"},
+        {"key": "scripts", "value": "{\"deploy\": \"fly deploy\"}", "merge": true},
         {"key": "devDependencies", "delete": true}
       ]
-    commit: true
 ```
 
-#### 7. Dry Run (Preview Changes)
+### Schema Validation
+
+Validate the result against a JSON Schema **before** writing. If validation fails, the file is not modified:
 
 ```yaml
-- name: Preview changes without modifying
-  uses: maxgfr/github-change-json@main
+- uses: maxgfr/github-change-json@main
+  with:
+    key: 'version'
+    value: '2.0.0'
+    path: package.json
+    schema: schemas/package.schema.json    # local file path
+    # or: schema: 'https://json.schemastore.org/package.json'
+```
+
+### Create File if Missing
+
+Create the target file with `{}` if it doesn't exist yet (parent directories are created automatically):
+
+```yaml
+- uses: maxgfr/github-change-json@main
+  with:
+    key: 'database.host'
+    value: 'localhost'
+    path: config/settings.json
+    create-if-missing: true
+```
+
+### Dry Run
+
+Preview what would change without modifying the file:
+
+```yaml
+- uses: maxgfr/github-change-json@main
   with:
     key: 'name'
     value: '@my-org/my-package'
@@ -155,129 +160,119 @@ Use the `changes` input to apply multiple modifications at once:
     dry-run: true
 ```
 
-#### 8. Use Previous Value and Check if Modified
+### Commit and Push
 
 ```yaml
-- name: Update name
-  id: update
-  uses: maxgfr/github-change-json@main
+- uses: maxgfr/github-change-json@main
   with:
     key: 'name'
     value: '@my-org/my-package'
     path: package.json
+    commit: true
+```
 
-- name: Show previous value
-  run: echo "Previous name was ${{ steps.update.outputs.old-value }}"
+### Use Outputs
 
-- name: Conditional step based on changes
-  if: steps.update.outputs.modified == 'true'
-  run: echo "File was modified, running deploy..."
+```yaml
+- id: update
+  uses: maxgfr/github-change-json@main
+  with:
+    key: 'version'
+    value: '2.0.0'
+    path: package.json
+
+- run: |
+    echo "Old: ${{ steps.update.outputs.old-value }}"
+    echo "New: ${{ steps.update.outputs.new-value }}"
+
+- if: steps.update.outputs.modified == 'true'
+  run: echo "File changed, deploying..."
 ```
 
 ## Inputs
 
 | Name | Type | Required | Default | Description |
 |------|------|----------|---------|-------------|
-| `path` | string | yes | - | Path to the JSON file you want to update (relative to repository root) |
-| `key` | string | no* | - | Key to modify (supports dot notation for nested keys, e.g. `compilerOptions.target`) |
-| `value` | string | no* | - | Value to set for the key |
-| `type` | string | no | `string` | Type of the value: `string`, `number`, `boolean`, or `json` |
-| `commit` | boolean | no | `false` | Commit and push the changes to the repository |
-| `delete` | boolean | no | `false` | Delete the specified key instead of setting a value |
-| `dry-run` | boolean | no | `false` | Preview changes without modifying the file |
-| `changes` | string | no | - | JSON array of changes to apply (overrides `key`/`value`/`type`/`delete`) |
+| `path` | string | **yes** | -- | Path to the JSON file (relative to repo root) |
+| `key` | string | no\* | -- | Key to modify. Supports dot notation for nesting (`a.b.c`) and array indices (`items.0.name`). Escape literal dots with `\\` (`my\\.key`) |
+| `value` | string | no\* | -- | Value to set (always passed as a string, converted via `type`) |
+| `type` | string | no | `string` | Value type: `string`, `number`, `boolean`, or `json` |
+| `commit` | boolean | no | `false` | Commit and push changes |
+| `delete` | boolean | no | `false` | Delete the key instead of setting a value |
+| `merge` | boolean | no | `false` | Deep merge a JSON object into the existing value |
+| `dry-run` | boolean | no | `false` | Preview changes without writing to disk |
+| `create-if-missing` | boolean | no | `false` | Create the file with `{}` if it doesn't exist |
+| `changes` | string | no | -- | JSON array of changes (overrides single-key inputs). Each item: `{"key", "value", "type", "delete", "merge"}` |
+| `schema` | string | no | -- | Path or URL to a JSON Schema to validate the result against |
 
-*Either `key` or `changes` is required. When using `key` without `delete: true`, `value` is also required.
+\*Either `key` or `changes` is required. `value` is required unless `delete: true`.
 
 ## Outputs
 
 | Name | Description |
 |------|-------------|
-| `old-value` | The previous value of the modified key. For single key: the value as a string. For multiple keys: a JSON object mapping keys to old values. |
-| `modified` | Whether the file content was actually changed (`'true'` or `'false'`). Useful for conditional steps. |
+| `old-value` | Previous value (string for single key, JSON object for multiple keys) |
+| `new-value` | New value after modification (same format as `old-value`) |
+| `modified` | `'true'` if the file content changed, `'false'` otherwise |
 
-## Behavior
-
-### Nested Keys
-
-Use dot notation to access nested keys: `compilerOptions.target` modifies `{ "compilerOptions": { "target": ... } }`. Intermediate objects are created automatically if they don't exist.
-
-To use a literal dot in a key name, escape it with a backslash: `my\\.dotted\\.key`.
+## Behavior Details
 
 ### JSONC Support
 
-The action supports JSONC (JSON with Comments) files like `tsconfig.json`. Line comments (`//`) and block comments (`/* */`) are preserved when modifying values.
+Files with line comments (`//`), block comments (`/* */`), and trailing commas are fully supported. Comments are preserved when modifying values.
 
 ### Formatting Preservation
 
-The action detects and preserves:
-- Indentation style (2 spaces, 4 spaces, tabs)
-- Line endings (LF, CRLF)
-- Trailing newlines
+The action detects and preserves the original file's:
+- **Indentation** (2 spaces, 4 spaces, tabs)
+- **Line endings** (LF, CRLF)
+- **Trailing newline**
 
-### Type Validation
+### Schema Validation
 
-The `type` input only accepts: `string` (default), `number`, `boolean`, or `json`. Any other value will cause the action to fail with a clear error message.
-
-### Limitations
-
-- The root of the JSON file must be an object (`{}`), not an array (`[]`).
-- You cannot set a nested path through an existing primitive value (e.g., setting `name.sub` when `name` is a string). Delete the key first, then set the nested path.
-- All values are passed as strings and converted based on the `type` input.
-
-### Error Handling
-
-The action will fail and provide clear error messages if:
-- The specified file does not exist
-- The file contains invalid JSON/JSONC
-- The file cannot be read or written
-- An invalid type conversion is requested (e.g. `type: number` with `value: abc`)
+- Runs **before** writing -- the file is never left in an invalid state
+- Works in `dry-run` mode too (validates the would-be result)
+- Supports local file paths and `http://` / `https://` URLs (30s fetch timeout)
+- Uses JSON Schema draft-07 via [Ajv](https://ajv.js.org/)
+- `$ref` to external URLs within the schema is not supported
 
 ### Commit Behavior
 
 When `commit: true`:
-- The action will configure git with the GitHub Actions bot credentials
-- Changes will be committed with message: `chore: update <path> with <key>=<value>`
-- The commit will be pushed to the branch that triggered the workflow
-- Pre-commit hooks are bypassed with `--no-verify`
-- Commits are skipped in `dry-run` mode
+- Git user is set to `GITHUB_ACTOR` (or `github-actions[bot]`)
+- Commit message: `chore: update <path> (set <key>=<value>)` (values are truncated if long)
+- Pushed to the triggering branch
+- Skipped in `dry-run` mode
+
+### Error Handling
+
+The action fails with a clear message when:
+- File not found (and `create-if-missing` is `false`)
+- Invalid JSON/JSONC syntax
+- Invalid type conversion (`type: number` with `value: abc`)
+- Invalid `type` value (`integer`, `float`, etc.)
+- Conflicting flags (`delete` + `merge`)
+- Non-string `value` in `changes` array
+- Schema validation failure
+- Setting a nested path through a primitive (`name.sub` when `name` is a string)
+
+### Limitations
+
+- String key modifications require an object root (`{}`), not an array root (`[]`)
+- Purely numeric path segments are always array indices -- string keys like `"0"` are not supported
+- Merge requires a JSON object value (not arrays or primitives)
+- Schema `$ref` to external URLs is not resolved
 
 ## Development
 
-### Install
-
 ```bash
-pnpm install
-```
-
-### Build
-
-```bash
-pnpm run build
-```
-
-### Test
-
-```bash
-pnpm test
-```
-
-### Lint
-
-```bash
-pnpm run lint
-```
-
-### Format
-
-```bash
-pnpm run format
-```
-
-### All Checks
-
-```bash
-pnpm run all
+pnpm install          # install dependencies
+pnpm run build        # compile TypeScript
+pnpm run package      # bundle with ncc
+pnpm run lint         # run ESLint
+pnpm run format       # format with Prettier
+pnpm test             # run 165 tests
+pnpm run all          # build + package + lint + test
 ```
 
 ## License

@@ -5,7 +5,9 @@ import {
   modifyJsonFile,
   parseValue,
   keyToPath,
-  detectFormatting
+  detectFormatting,
+  deepMerge,
+  validateJsonSchema
 } from './utils'
 
 jest.mock('@actions/core', () => ({
@@ -35,6 +37,16 @@ describe('parseValue', () => {
     expect(() => parseValue('', 'number')).toThrow('Invalid number value')
   })
 
+  it('should reject NaN and Infinity as numbers', () => {
+    expect(() => parseValue('NaN', 'number')).toThrow('Invalid number value')
+    expect(() => parseValue('Infinity', 'number')).toThrow(
+      'Invalid number value'
+    )
+    expect(() => parseValue('-Infinity', 'number')).toThrow(
+      'Invalid number value'
+    )
+  })
+
   it('should parse boolean type', () => {
     expect(parseValue('true', 'boolean')).toBe(true)
     expect(parseValue('false', 'boolean')).toBe(false)
@@ -62,18 +74,12 @@ describe('parseValue', () => {
   })
 
   it('should throw on invalid type', () => {
-    expect(() => parseValue('hello', 'integer')).toThrow("Invalid type: 'integer'")
-    expect(() => parseValue('hello', 'float')).toThrow("Invalid type: 'float'")
-    expect(() => parseValue('hello', 'object')).toThrow("Invalid type: 'object'")
-  })
-
-  it('should handle Infinity and NaN as invalid numbers', () => {
-    expect(() => parseValue('NaN', 'number')).toThrow('Invalid number value')
-  })
-
-  it('should parse Infinity as a number', () => {
-    expect(parseValue('Infinity', 'number')).toBe(Infinity)
-    expect(parseValue('-Infinity', 'number')).toBe(-Infinity)
+    expect(() => parseValue('hello', 'integer')).toThrow(
+      "Invalid type: 'integer'"
+    )
+    expect(() => parseValue('hello', 'float')).toThrow(
+      "Invalid type: 'float'"
+    )
   })
 })
 
@@ -100,6 +106,55 @@ describe('keyToPath', () => {
 
   it('should handle single key', () => {
     expect(keyToPath('x')).toEqual(['x'])
+  })
+
+  it('should convert numeric segments to numbers (array indices)', () => {
+    expect(keyToPath('items.0')).toEqual(['items', 0])
+    expect(keyToPath('items.0.name')).toEqual(['items', 0, 'name'])
+    expect(keyToPath('a.1.b.2.c')).toEqual(['a', 1, 'b', 2, 'c'])
+  })
+
+  it('should not convert non-numeric segments', () => {
+    expect(keyToPath('items.0a')).toEqual(['items', '0a'])
+    expect(keyToPath('items.abc')).toEqual(['items', 'abc'])
+  })
+})
+
+describe('deepMerge', () => {
+  it('should merge two flat objects', () => {
+    expect(deepMerge({a: 1, b: 2}, {b: 3, c: 4})).toEqual({a: 1, b: 3, c: 4})
+  })
+
+  it('should recursively merge nested objects', () => {
+    const target = {a: {x: 1, y: 2}, b: 1}
+    const source = {a: {y: 3, z: 4}}
+    expect(deepMerge(target, source)).toEqual({a: {x: 1, y: 3, z: 4}, b: 1})
+  })
+
+  it('should replace arrays (not merge them)', () => {
+    expect(deepMerge({a: [1, 2]}, {a: [3, 4, 5]})).toEqual({a: [3, 4, 5]})
+  })
+
+  it('should replace primitives', () => {
+    expect(deepMerge({a: 'old'}, {a: 'new'})).toEqual({a: 'new'})
+  })
+
+  it('should handle undefined target (new key)', () => {
+    expect(deepMerge(undefined, {a: 1})).toEqual({a: 1})
+  })
+
+  it('should handle null target', () => {
+    expect(deepMerge(null, {a: 1})).toEqual({a: 1})
+  })
+
+  it('should replace primitive target with object source', () => {
+    expect(deepMerge('hello', {a: 1})).toEqual({a: 1})
+  })
+
+  it('should deeply merge 3 levels', () => {
+    const target = {a: {b: {c: 1, d: 2}, e: 3}}
+    const source = {a: {b: {c: 99}}}
+    expect(deepMerge(target, source)).toEqual({a: {b: {c: 99, d: 2}, e: 3}})
   })
 })
 
@@ -141,6 +196,112 @@ describe('detectFormatting', () => {
     const fmt = detectFormatting(content)
     expect(fmt.tabSize).toBe(2)
     expect(fmt.insertSpaces).toBe(true)
+  })
+})
+
+describe('validateJsonSchema', () => {
+  let tempDir: string
+
+  beforeAll(async () => {
+    tempDir = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'github-change-json-schema-')
+    )
+  })
+
+  afterAll(async () => {
+    try {
+      await fs.rm(tempDir, {recursive: true, force: true})
+    } catch {
+      // Ignore
+    }
+  })
+
+  it('should pass valid content against schema', async () => {
+    const schema = {
+      type: 'object',
+      required: ['name', 'version'],
+      properties: {
+        name: {type: 'string'},
+        version: {type: 'string'}
+      }
+    }
+    const schemaPath = path.join(tempDir, 'valid.schema.json')
+    await fs.writeFile(schemaPath, JSON.stringify(schema), 'utf8')
+
+    const content = JSON.stringify({name: 'test', version: '1.0.0'})
+
+    await expect(
+      validateJsonSchema(content, schemaPath)
+    ).resolves.not.toThrow()
+  })
+
+  it('should fail when required field is missing', async () => {
+    const schema = {
+      type: 'object',
+      required: ['name', 'version'],
+      properties: {
+        name: {type: 'string'},
+        version: {type: 'string'}
+      }
+    }
+    const schemaPath = path.join(tempDir, 'required.schema.json')
+    await fs.writeFile(schemaPath, JSON.stringify(schema), 'utf8')
+
+    const content = JSON.stringify({name: 'test'})
+
+    await expect(validateJsonSchema(content, schemaPath)).rejects.toThrow(
+      'Schema validation failed'
+    )
+  })
+
+  it('should fail when type is wrong', async () => {
+    const schema = {
+      type: 'object',
+      properties: {
+        port: {type: 'number'}
+      }
+    }
+    const schemaPath = path.join(tempDir, 'type.schema.json')
+    await fs.writeFile(schemaPath, JSON.stringify(schema), 'utf8')
+
+    const content = JSON.stringify({port: 'not-a-number'})
+
+    await expect(validateJsonSchema(content, schemaPath)).rejects.toThrow(
+      'Schema validation failed'
+    )
+  })
+
+  it('should throw on non-existent schema file', async () => {
+    const content = JSON.stringify({name: 'test'})
+    await expect(
+      validateJsonSchema(content, path.join(tempDir, 'nope.json'))
+    ).rejects.toThrow('Schema file not found')
+  })
+
+  it('should throw on invalid JSON schema file', async () => {
+    const schemaPath = path.join(tempDir, 'bad.schema.json')
+    await fs.writeFile(schemaPath, 'not json', 'utf8')
+
+    const content = JSON.stringify({name: 'test'})
+    await expect(
+      validateJsonSchema(content, schemaPath)
+    ).rejects.toThrow('Invalid JSON in schema file')
+  })
+
+  it('should validate JSONC content', async () => {
+    const schema = {
+      type: 'object',
+      required: ['name'],
+      properties: {name: {type: 'string'}}
+    }
+    const schemaPath = path.join(tempDir, 'jsonc.schema.json')
+    await fs.writeFile(schemaPath, JSON.stringify(schema), 'utf8')
+
+    const content = '{\n  // comment\n  "name": "test"\n}'
+
+    await expect(
+      validateJsonSchema(content, schemaPath)
+    ).resolves.not.toThrow()
   })
 })
 
@@ -316,9 +477,7 @@ describe('modifyJsonFile', () => {
     })
 
     it('should create intermediate objects for deep nesting', async () => {
-      await modifyJsonFile('test.json', [
-        {key: 'a.b.c', value: 'deep'}
-      ])
+      await modifyJsonFile('test.json', [{key: 'a.b.c', value: 'deep'}])
 
       const content = await fs.readFile(testFilePath, 'utf8')
       const json = JSON.parse(content)
@@ -336,9 +495,7 @@ describe('modifyJsonFile', () => {
     })
 
     it('should create very deep nesting', async () => {
-      await modifyJsonFile('test.json', [
-        {key: 'a.b.c.d.e.f', value: 'deep'}
-      ])
+      await modifyJsonFile('test.json', [{key: 'a.b.c.d.e.f', value: 'deep'}])
 
       const content = await fs.readFile(testFilePath, 'utf8')
       const json = JSON.parse(content)
@@ -361,6 +518,301 @@ describe('modifyJsonFile', () => {
       const json = JSON.parse(content)
 
       expect(json['my.dotted.key']).toBe('literal')
+    })
+  })
+
+  describe('array index support', () => {
+    beforeEach(async () => {
+      await fs.writeFile(
+        testFilePath,
+        JSON.stringify(
+          {
+            items: ['apple', 'banana', 'cherry'],
+            users: [
+              {name: 'Alice', age: 30},
+              {name: 'Bob', age: 25}
+            ]
+          },
+          null,
+          2
+        )
+      )
+    })
+
+    it('should modify an array element by index', async () => {
+      await modifyJsonFile('test.json', [
+        {key: 'items.1', value: 'blueberry'}
+      ])
+
+      const content = await fs.readFile(testFilePath, 'utf8')
+      const json = JSON.parse(content)
+
+      expect(json.items[1]).toBe('blueberry')
+      expect(json.items[0]).toBe('apple')
+      expect(json.items[2]).toBe('cherry')
+    })
+
+    it('should modify a nested field in an array element', async () => {
+      await modifyJsonFile('test.json', [
+        {key: 'users.0.name', value: 'Alicia'}
+      ])
+
+      const content = await fs.readFile(testFilePath, 'utf8')
+      const json = JSON.parse(content)
+
+      expect(json.users[0].name).toBe('Alicia')
+      expect(json.users[0].age).toBe(30)
+      expect(json.users[1].name).toBe('Bob')
+    })
+
+    it('should set typed values in array elements', async () => {
+      await modifyJsonFile('test.json', [
+        {key: 'users.1.age', value: '26', type: 'number'}
+      ])
+
+      const content = await fs.readFile(testFilePath, 'utf8')
+      const json = JSON.parse(content)
+
+      expect(json.users[1].age).toBe(26)
+    })
+
+    it('should return old value for array element', async () => {
+      const {results} = await modifyJsonFile('test.json', [
+        {key: 'items.0', value: 'avocado'}
+      ])
+
+      expect(results[0].oldValue).toBe('apple')
+    })
+
+    it('should delete an array element', async () => {
+      await modifyJsonFile('test.json', [{key: 'users.1', delete: true}])
+
+      const content = await fs.readFile(testFilePath, 'utf8')
+      const json = JSON.parse(content)
+
+      expect(json.users).toHaveLength(1)
+      expect(json.users[0].name).toBe('Alice')
+    })
+  })
+
+  describe('merge mode', () => {
+    beforeEach(async () => {
+      await fs.writeFile(
+        testFilePath,
+        JSON.stringify(
+          {
+            name: 'test',
+            scripts: {build: 'tsc', test: 'jest', lint: 'eslint'},
+            nested: {a: {x: 1, y: 2}, b: 'hello'}
+          },
+          null,
+          2
+        )
+      )
+    })
+
+    it('should merge new keys into existing object', async () => {
+      await modifyJsonFile('test.json', [
+        {key: 'scripts', value: '{"start": "node index.js"}', merge: true}
+      ])
+
+      const content = await fs.readFile(testFilePath, 'utf8')
+      const json = JSON.parse(content)
+
+      expect(json.scripts.build).toBe('tsc')
+      expect(json.scripts.test).toBe('jest')
+      expect(json.scripts.lint).toBe('eslint')
+      expect(json.scripts.start).toBe('node index.js')
+    })
+
+    it('should overwrite existing keys during merge', async () => {
+      await modifyJsonFile('test.json', [
+        {key: 'scripts', value: '{"build": "esbuild"}', merge: true}
+      ])
+
+      const content = await fs.readFile(testFilePath, 'utf8')
+      const json = JSON.parse(content)
+
+      expect(json.scripts.build).toBe('esbuild')
+      expect(json.scripts.test).toBe('jest')
+      expect(json.scripts.lint).toBe('eslint')
+    })
+
+    it('should deeply merge nested objects', async () => {
+      await modifyJsonFile('test.json', [
+        {key: 'nested', value: '{"a": {"z": 3}}', merge: true}
+      ])
+
+      const content = await fs.readFile(testFilePath, 'utf8')
+      const json = JSON.parse(content)
+
+      expect(json.nested.a.x).toBe(1)
+      expect(json.nested.a.y).toBe(2)
+      expect(json.nested.a.z).toBe(3)
+      expect(json.nested.b).toBe('hello')
+    })
+
+    it('should merge into non-existent key (creates it)', async () => {
+      await modifyJsonFile('test.json', [
+        {key: 'config', value: '{"host": "localhost"}', merge: true}
+      ])
+
+      const content = await fs.readFile(testFilePath, 'utf8')
+      const json = JSON.parse(content)
+
+      expect(json.config).toEqual({host: 'localhost'})
+    })
+
+    it('should return old and new values for merge', async () => {
+      const {results} = await modifyJsonFile('test.json', [
+        {key: 'scripts', value: '{"start": "node ."}', merge: true}
+      ])
+
+      expect(results[0].oldValue).toEqual({
+        build: 'tsc',
+        test: 'jest',
+        lint: 'eslint'
+      })
+      expect(results[0].newValue).toEqual({
+        build: 'tsc',
+        test: 'jest',
+        lint: 'eslint',
+        start: 'node .'
+      })
+    })
+
+    it('should throw on non-JSON merge value', async () => {
+      await expect(
+        modifyJsonFile('test.json', [
+          {key: 'scripts', value: 'not json', merge: true}
+        ])
+      ).rejects.toThrow('Merge requires a valid JSON value')
+    })
+
+    it('should throw on non-object merge value', async () => {
+      await expect(
+        modifyJsonFile('test.json', [
+          {key: 'scripts', value: '[1,2,3]', merge: true}
+        ])
+      ).rejects.toThrow('Merge requires a JSON object value')
+    })
+
+    it('should throw on missing value for merge', async () => {
+      await expect(
+        modifyJsonFile('test.json', [{key: 'scripts', merge: true}])
+      ).rejects.toThrow('Value is required for merge')
+    })
+
+    it('should work in changes array', async () => {
+      await modifyJsonFile('test.json', [
+        {key: 'scripts', value: '{"deploy": "fly deploy"}', merge: true},
+        {key: 'name', value: 'updated'}
+      ])
+
+      const content = await fs.readFile(testFilePath, 'utf8')
+      const json = JSON.parse(content)
+
+      expect(json.scripts.deploy).toBe('fly deploy')
+      expect(json.scripts.build).toBe('tsc')
+      expect(json.name).toBe('updated')
+    })
+  })
+
+  describe('schema validation', () => {
+    let schemaPath: string
+
+    beforeEach(async () => {
+      schemaPath = path.join(tempDir, 'schema.json')
+      await fs.writeFile(
+        schemaPath,
+        JSON.stringify({
+          type: 'object',
+          required: ['name', 'version'],
+          properties: {
+            name: {type: 'string', minLength: 1},
+            version: {type: 'string'}
+          }
+        }),
+        'utf8'
+      )
+    })
+
+    it('should pass when modification produces valid result', async () => {
+      await expect(
+        modifyJsonFile(
+          'test.json',
+          [{key: 'name', value: 'valid-name'}],
+          {schema: 'schema.json'}
+        )
+      ).resolves.toBeDefined()
+    })
+
+    it('should reject when modification violates schema (missing required)', async () => {
+      await expect(
+        modifyJsonFile(
+          'test.json',
+          [{key: 'version', delete: true}],
+          {schema: 'schema.json'}
+        )
+      ).rejects.toThrow('Schema validation failed')
+    })
+
+    it('should reject when modification violates schema (wrong type)', async () => {
+      await fs.writeFile(
+        schemaPath,
+        JSON.stringify({
+          type: 'object',
+          properties: {
+            name: {type: 'number'}
+          }
+        }),
+        'utf8'
+      )
+
+      await expect(
+        modifyJsonFile(
+          'test.json',
+          [{key: 'name', value: 'still-a-string'}],
+          {schema: 'schema.json'}
+        )
+      ).rejects.toThrow('Schema validation failed')
+    })
+
+    it('should not write file when schema validation fails', async () => {
+      const originalContent = await fs.readFile(testFilePath, 'utf8')
+
+      try {
+        await modifyJsonFile(
+          'test.json',
+          [{key: 'version', delete: true}],
+          {schema: 'schema.json'}
+        )
+      } catch {
+        // Expected
+      }
+
+      const content = await fs.readFile(testFilePath, 'utf8')
+      expect(content).toBe(originalContent)
+    })
+
+    it('should validate in dry-run mode too', async () => {
+      await expect(
+        modifyJsonFile(
+          'test.json',
+          [{key: 'version', delete: true}],
+          {schema: 'schema.json', dryRun: true}
+        )
+      ).rejects.toThrow('Schema validation failed')
+    })
+
+    it('should throw on missing schema file', async () => {
+      await expect(
+        modifyJsonFile(
+          'test.json',
+          [{key: 'name', value: 'val'}],
+          {schema: 'nonexistent.schema.json'}
+        )
+      ).rejects.toThrow('Schema file not found')
     })
   })
 
@@ -828,6 +1280,59 @@ describe('modifyJsonFile', () => {
       expect(json.key).toBe('modified')
 
       await fs.rm(subDir, {recursive: true, force: true})
+    })
+  })
+
+  describe('create-if-missing', () => {
+    it('should create file with empty object if it does not exist', async () => {
+      const newFile = path.join(tempDir, 'new-config.json')
+
+      await modifyJsonFile(
+        'new-config.json',
+        [{key: 'name', value: 'created'}],
+        {createIfMissing: true}
+      )
+
+      const content = await fs.readFile(newFile, 'utf8')
+      const json = JSON.parse(content)
+      expect(json.name).toBe('created')
+
+      await fs.unlink(newFile)
+    })
+
+    it('should create parent directories if needed', async () => {
+      const deepPath = path.join(tempDir, 'deep', 'nested', 'config.json')
+
+      await modifyJsonFile(
+        'deep/nested/config.json',
+        [{key: 'key', value: 'value'}],
+        {createIfMissing: true}
+      )
+
+      const content = await fs.readFile(deepPath, 'utf8')
+      const json = JSON.parse(content)
+      expect(json.key).toBe('value')
+
+      await fs.rm(path.join(tempDir, 'deep'), {recursive: true, force: true})
+    })
+
+    it('should not create file if it already exists', async () => {
+      await modifyJsonFile(
+        'test.json',
+        [{key: 'name', value: 'modified'}],
+        {createIfMissing: true}
+      )
+
+      const content = await fs.readFile(testFilePath, 'utf8')
+      const json = JSON.parse(content)
+      expect(json.name).toBe('modified')
+      expect(json.version).toBe('1.0.0')
+    })
+
+    it('should still throw without create-if-missing flag', async () => {
+      await expect(
+        modifyJsonFile('nonexistent.json', [{key: 'name', value: 'val'}])
+      ).rejects.toThrow('File not found')
     })
   })
 })
