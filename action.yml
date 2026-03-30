@@ -44,3 +44,5 @@ inputs:
 outputs:
   old-value:
     description: The previous value of the modified key (string for single key, JSON object for multiple keys)
+  modified:
+    description: Whether the file content was actually changed ('true' or 'false')

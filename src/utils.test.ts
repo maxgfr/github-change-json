@@ -1,7 +1,12 @@
 import fs from 'fs/promises'
 import path from 'path'
 import os from 'os'
-import {modifyJsonFile, parseValue, keyToPath, detectFormatting} from './utils'
+import {
+  modifyJsonFile,
+  parseValue,
+  keyToPath,
+  detectFormatting
+} from './utils'
 
 jest.mock('@actions/core', () => ({
   info: jest.fn(),
@@ -55,6 +60,21 @@ describe('parseValue', () => {
   it('should throw on invalid json', () => {
     expect(() => parseValue('{broken}', 'json')).toThrow('Invalid JSON value')
   })
+
+  it('should throw on invalid type', () => {
+    expect(() => parseValue('hello', 'integer')).toThrow("Invalid type: 'integer'")
+    expect(() => parseValue('hello', 'float')).toThrow("Invalid type: 'float'")
+    expect(() => parseValue('hello', 'object')).toThrow("Invalid type: 'object'")
+  })
+
+  it('should handle Infinity and NaN as invalid numbers', () => {
+    expect(() => parseValue('NaN', 'number')).toThrow('Invalid number value')
+  })
+
+  it('should parse Infinity as a number', () => {
+    expect(parseValue('Infinity', 'number')).toBe(Infinity)
+    expect(parseValue('-Infinity', 'number')).toBe(-Infinity)
+  })
 })
 
 describe('keyToPath', () => {
@@ -72,6 +92,14 @@ describe('keyToPath', () => {
   it('should handle empty segments', () => {
     expect(keyToPath('.a')).toEqual(['', 'a'])
     expect(keyToPath('a.')).toEqual(['a', ''])
+  })
+
+  it('should handle trailing backslash', () => {
+    expect(keyToPath('a\\')).toEqual(['a\\'])
+  })
+
+  it('should handle single key', () => {
+    expect(keyToPath('x')).toEqual(['x'])
   })
 })
 
@@ -228,7 +256,7 @@ describe('modifyJsonFile', () => {
 
   describe('return values', () => {
     it('should return old value for existing key', async () => {
-      const results = await modifyJsonFile('test.json', [
+      const {results} = await modifyJsonFile('test.json', [
         {key: 'name', value: 'modified'}
       ])
 
@@ -239,7 +267,7 @@ describe('modifyJsonFile', () => {
     })
 
     it('should return undefined old value for new key', async () => {
-      const results = await modifyJsonFile('test.json', [
+      const {results} = await modifyJsonFile('test.json', [
         {key: 'brand-new', value: 'val'}
       ])
 
@@ -248,7 +276,7 @@ describe('modifyJsonFile', () => {
     })
 
     it('should return multiple results for multiple changes', async () => {
-      const results = await modifyJsonFile('test.json', [
+      const {results} = await modifyJsonFile('test.json', [
         {key: 'name', value: 'new-name'},
         {key: 'version', value: '2.0.0'}
       ])
@@ -256,6 +284,22 @@ describe('modifyJsonFile', () => {
       expect(results).toHaveLength(2)
       expect(results[0].oldValue).toBe('test')
       expect(results[1].oldValue).toBe('1.0.0')
+    })
+
+    it('should return modified=true when content changes', async () => {
+      const {modified} = await modifyJsonFile('test.json', [
+        {key: 'name', value: 'different'}
+      ])
+
+      expect(modified).toBe(true)
+    })
+
+    it('should return modified=false when setting same value', async () => {
+      const {modified} = await modifyJsonFile('test.json', [
+        {key: 'name', value: 'test'}
+      ])
+
+      expect(modified).toBe(false)
     })
   })
 
@@ -283,12 +327,29 @@ describe('modifyJsonFile', () => {
     })
 
     it('should return old value for nested keys', async () => {
-      const results = await modifyJsonFile('test.json', [
+      const {results} = await modifyJsonFile('test.json', [
         {key: 'nested.value', value: 'new'}
       ])
 
       expect(results[0].oldValue).toBe('old')
       expect(results[0].newValue).toBe('new')
+    })
+
+    it('should create very deep nesting', async () => {
+      await modifyJsonFile('test.json', [
+        {key: 'a.b.c.d.e.f', value: 'deep'}
+      ])
+
+      const content = await fs.readFile(testFilePath, 'utf8')
+      const json = JSON.parse(content)
+
+      expect(json.a.b.c.d.e.f).toBe('deep')
+    })
+
+    it('should throw when setting nested path through a primitive', async () => {
+      await expect(
+        modifyJsonFile('test.json', [{key: 'name.sub', value: 'nested'}])
+      ).rejects.toThrow("Failed to set 'name.sub'")
     })
 
     it('should handle escaped dots as literal key names', async () => {
@@ -394,6 +455,14 @@ describe('modifyJsonFile', () => {
         ])
       ).rejects.toThrow('Invalid JSON value')
     })
+
+    it('should throw on invalid type string', async () => {
+      await expect(
+        modifyJsonFile('test.json', [
+          {key: 'name', value: 'val', type: 'integer' as 'string'}
+        ])
+      ).rejects.toThrow("Invalid type: 'integer'")
+    })
   })
 
   describe('delete mode', () => {
@@ -418,7 +487,7 @@ describe('modifyJsonFile', () => {
     })
 
     it('should return old value when deleting', async () => {
-      const results = await modifyJsonFile('test.json', [
+      const {results} = await modifyJsonFile('test.json', [
         {key: 'version', delete: true}
       ])
 
@@ -427,7 +496,7 @@ describe('modifyJsonFile', () => {
     })
 
     it('should handle deleting non-existent key gracefully', async () => {
-      const results = await modifyJsonFile('test.json', [
+      const {results} = await modifyJsonFile('test.json', [
         {key: 'nonexistent', delete: true}
       ])
 
@@ -467,7 +536,7 @@ describe('modifyJsonFile', () => {
     })
 
     it('should still return results in dry-run mode', async () => {
-      const results = await modifyJsonFile(
+      const {results, modified} = await modifyJsonFile(
         'test.json',
         [{key: 'name', value: 'modified'}],
         {dryRun: true}
@@ -476,6 +545,7 @@ describe('modifyJsonFile', () => {
       expect(results).toHaveLength(1)
       expect(results[0].oldValue).toBe('test')
       expect(results[0].newValue).toBe('modified')
+      expect(modified).toBe(true)
     })
   })
 
@@ -511,6 +581,21 @@ describe('modifyJsonFile', () => {
 
       const content = await fs.readFile(testFilePath, 'utf8')
       expect(content).toContain('/* Block comment */')
+      expect(content).toContain('"name": "modified"')
+    })
+
+    it('should parse and modify files with trailing commas', async () => {
+      const jsoncContent = [
+        '{',
+        '  "name": "test",',
+        '  "version": "1.0.0",',
+        '}'
+      ].join('\n')
+      await fs.writeFile(testFilePath, jsoncContent, 'utf8')
+
+      await modifyJsonFile('test.json', [{key: 'name', value: 'modified'}])
+
+      const content = await fs.readFile(testFilePath, 'utf8')
       expect(content).toContain('"name": "modified"')
     })
 
@@ -642,9 +727,28 @@ describe('modifyJsonFile', () => {
       ).rejects.toThrow()
     })
 
-    it('should return empty array for empty properties', async () => {
-      const results = await modifyJsonFile('test.json', [])
+    it('should return empty results and modified=false for empty properties', async () => {
+      const {results, modified} = await modifyJsonFile('test.json', [])
       expect(results).toEqual([])
+      expect(modified).toBe(false)
+    })
+
+    it('should handle empty JSON object', async () => {
+      await fs.writeFile(testFilePath, '{}', 'utf8')
+
+      await modifyJsonFile('test.json', [{key: 'name', value: 'value'}])
+
+      const content = await fs.readFile(testFilePath, 'utf8')
+      const json = JSON.parse(content)
+      expect(json.name).toBe('value')
+    })
+
+    it('should throw when modifying a root-level JSON array', async () => {
+      await fs.writeFile(testFilePath, '[1, 2, 3]', 'utf8')
+
+      await expect(
+        modifyJsonFile('test.json', [{key: 'name', value: 'value'}])
+      ).rejects.toThrow("Failed to set 'name'")
     })
   })
 

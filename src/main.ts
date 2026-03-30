@@ -59,9 +59,11 @@ export const run = async (): Promise<void> => {
       ]
     }
 
-    const results = await modifyJsonFile(filePath, properties, {
+    const {results, modified} = await modifyJsonFile(filePath, properties, {
       dryRun: isDryRun
     })
+
+    core.setOutput('modified', String(modified))
 
     if (results.length === 1) {
       const old = results[0].oldValue

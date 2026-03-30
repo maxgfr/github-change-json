@@ -55,7 +55,7 @@ jest.mock('jsonc-parser', () => ({
       return edits[0].content
     }
   ),
-  ParseErrorCode: {InvalidCommentToken: 1}
+  ParseErrorCode: {InvalidCommentToken: 10}
 }))
 
 describe('main', () => {
@@ -387,6 +387,19 @@ describe('main', () => {
       )
     })
 
+    it('should handle empty changes array as no-op', async () => {
+      mockGetInput.mockImplementation(name => {
+        if (name === 'path') return 'test.json'
+        if (name === 'changes') return '[]'
+        return ''
+      })
+
+      await run()
+
+      expect(mockSetFailed).not.toHaveBeenCalled()
+      expect(mockSetOutput).toHaveBeenCalledWith('modified', 'false')
+    })
+
     it('should apply type from changes array', async () => {
       mockGetInput.mockImplementation(name => {
         if (name === 'path') return 'test.json'
@@ -402,11 +415,55 @@ describe('main', () => {
     })
   })
 
+  describe('type input in single-key mode', () => {
+    it('should pass type to modifyJsonFile', async () => {
+      mockGetInput.mockImplementation(name => {
+        if (name === 'path') return 'test.json'
+        if (name === 'key') return 'port'
+        if (name === 'value') return '3000'
+        if (name === 'type') return 'number'
+        if (name === 'changes') return ''
+        return ''
+      })
+
+      await run()
+
+      expect(mockSetFailed).not.toHaveBeenCalled()
+      expect(fs.writeFile).toHaveBeenCalled()
+    })
+
+    it('should fail on invalid type', async () => {
+      mockGetInput.mockImplementation(name => {
+        if (name === 'path') return 'test.json'
+        if (name === 'key') return 'port'
+        if (name === 'value') return '3000'
+        if (name === 'type') return 'integer'
+        if (name === 'changes') return ''
+        return ''
+      })
+
+      await run()
+
+      expect(mockSetFailed).toHaveBeenCalledWith(
+        expect.stringContaining("Invalid type: 'integer'")
+      )
+    })
+  })
+
   describe('output', () => {
     it('should set old-value output for single key', async () => {
       await run()
 
       expect(mockSetOutput).toHaveBeenCalledWith('old-value', 'old')
+    })
+
+    it('should set modified output', async () => {
+      await run()
+
+      expect(mockSetOutput).toHaveBeenCalledWith(
+        'modified',
+        expect.any(String)
+      )
     })
 
     it('should JSON.stringify old-value when it is an object', async () => {

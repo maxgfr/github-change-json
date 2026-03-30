@@ -155,7 +155,7 @@ Use the `changes` input to apply multiple modifications at once:
     dry-run: true
 ```
 
-#### 8. Use Previous Value
+#### 8. Use Previous Value and Check if Modified
 
 ```yaml
 - name: Update name
@@ -168,6 +168,10 @@ Use the `changes` input to apply multiple modifications at once:
 
 - name: Show previous value
   run: echo "Previous name was ${{ steps.update.outputs.old-value }}"
+
+- name: Conditional step based on changes
+  if: steps.update.outputs.modified == 'true'
+  run: echo "File was modified, running deploy..."
 ```
 
 ## Inputs
@@ -190,6 +194,7 @@ Use the `changes` input to apply multiple modifications at once:
 | Name | Description |
 |------|-------------|
 | `old-value` | The previous value of the modified key. For single key: the value as a string. For multiple keys: a JSON object mapping keys to old values. |
+| `modified` | Whether the file content was actually changed (`'true'` or `'false'`). Useful for conditional steps. |
 
 ## Behavior
 
@@ -209,6 +214,16 @@ The action detects and preserves:
 - Indentation style (2 spaces, 4 spaces, tabs)
 - Line endings (LF, CRLF)
 - Trailing newlines
+
+### Type Validation
+
+The `type` input only accepts: `string` (default), `number`, `boolean`, or `json`. Any other value will cause the action to fail with a clear error message.
+
+### Limitations
+
+- The root of the JSON file must be an object (`{}`), not an array (`[]`).
+- You cannot set a nested path through an existing primitive value (e.g., setting `name.sub` when `name` is a string). Delete the key first, then set the nested path.
+- All values are passed as strings and converted based on the `type` input.
 
 ### Error Handling
 

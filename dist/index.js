@@ -27636,9 +27636,10 @@ const run = () => __awaiter(void 0, void 0, void 0, function* () {
                 }
             ];
         }
-        const results = yield (0, utils_1.modifyJsonFile)(filePath, properties, {
+        const { results, modified } = yield (0, utils_1.modifyJsonFile)(filePath, properties, {
             dryRun: isDryRun
         });
+        core.setOutput('modified', String(modified));
         if (results.length === 1) {
             const old = results[0].oldValue;
             let oldStr = '';
@@ -27764,7 +27765,11 @@ const path_1 = __importDefault(__nccwpck_require__(6928));
 /**
  * Parses a string value into the appropriate type.
  */
+const VALID_TYPES = ['string', 'number', 'boolean', 'json'];
 function parseValue(value, type) {
+    if (type && !VALID_TYPES.includes(type)) {
+        throw new Error(`Invalid type: '${type}'. Expected one of: ${VALID_TYPES.join(', ')}`);
+    }
     switch (type) {
         case 'number': {
             if (value.trim() === '')
@@ -27876,13 +27881,13 @@ function modifyJsonFile(fileName, properties, options) {
         core.info(`Reading file: ${filePath}`);
         const content = yield promises_1.default.readFile(filePath, 'utf8');
         const errors = [];
-        const parsed = (0, jsonc_parser_1.parse)(content, errors);
+        const parsed = (0, jsonc_parser_1.parse)(content, errors, { allowTrailingComma: true });
         const criticalErrors = errors.filter(e => e.error !== 10 /* ParseErrorCode.InvalidCommentToken */);
         if (criticalErrors.length > 0) {
             throw new Error(`Failed to parse JSON file: ${filePath}. Parse error at offset ${criticalErrors[0].offset}`);
         }
         if (properties.length === 0) {
-            return [];
+            return { results: [], modified: false };
         }
         const formattingOptions = detectFormatting(content);
         const results = [];
@@ -27892,10 +27897,15 @@ function modifyJsonFile(fileName, properties, options) {
             const oldValue = getNestedValue(parsed, jsonPath);
             if (prop.delete) {
                 core.info(`Deleting ${prop.key}`);
-                const edits = (0, jsonc_parser_1.modify)(modifiedContent, jsonPath, undefined, {
-                    formattingOptions
-                });
-                modifiedContent = (0, jsonc_parser_1.applyEdits)(modifiedContent, edits);
+                try {
+                    const edits = (0, jsonc_parser_1.modify)(modifiedContent, jsonPath, undefined, {
+                        formattingOptions
+                    });
+                    modifiedContent = (0, jsonc_parser_1.applyEdits)(modifiedContent, edits);
+                }
+                catch (e) {
+                    throw new Error(`Failed to delete '${prop.key}': ${e instanceof Error ? e.message : String(e)}`);
+                }
                 results.push({ key: prop.key, oldValue, newValue: undefined });
             }
             else {
@@ -27904,22 +27914,36 @@ function modifyJsonFile(fileName, properties, options) {
                 }
                 const newValue = parseValue(prop.value, prop.type);
                 core.info(`Setting ${prop.key} = ${prop.value}${prop.type && prop.type !== 'string' ? ` (${prop.type})` : ''}`);
-                const edits = (0, jsonc_parser_1.modify)(modifiedContent, jsonPath, newValue, {
-                    formattingOptions
-                });
-                modifiedContent = (0, jsonc_parser_1.applyEdits)(modifiedContent, edits);
+                try {
+                    const edits = (0, jsonc_parser_1.modify)(modifiedContent, jsonPath, newValue, {
+                        formattingOptions
+                    });
+                    modifiedContent = (0, jsonc_parser_1.applyEdits)(modifiedContent, edits);
+                }
+                catch (e) {
+                    throw new Error(`Failed to set '${prop.key}': ${e instanceof Error ? e.message : String(e)}`);
+                }
                 results.push({ key: prop.key, oldValue, newValue });
             }
         }
+        const modified = content !== modifiedContent;
         if (options === null || options === void 0 ? void 0 : options.dryRun) {
             core.info(`[Dry run] Would update ${fileName}`);
-            core.info(`[Dry run] New content:\n${modifiedContent}`);
+            if (modified) {
+                core.info(`[Dry run] New content:\n${modifiedContent}`);
+            }
+            else {
+                core.info(`[Dry run] No changes detected`);
+            }
         }
-        else {
+        else if (modified) {
             yield promises_1.default.writeFile(filePath, modifiedContent, 'utf8');
             core.info(`Successfully updated ${fileName}`);
         }
-        return results;
+        else {
+            core.info(`No changes needed for ${fileName}`);
+        }
+        return { results, modified };
     });
 }
 

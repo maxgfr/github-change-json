@@ -23,6 +23,11 @@ export interface ModifyResult {
   newValue: unknown
 }
 
+export interface ModifyFileResult {
+  results: ModifyResult[]
+  modified: boolean
+}
+
 export interface ModifyOptions {
   dryRun?: boolean
 }
@@ -30,10 +35,17 @@ export interface ModifyOptions {
 /**
  * Parses a string value into the appropriate type.
  */
+const VALID_TYPES = ['string', 'number', 'boolean', 'json'] as const
+
 export function parseValue(
   value: string,
   type?: string
 ): unknown {
+  if (type && !VALID_TYPES.includes(type as (typeof VALID_TYPES)[number])) {
+    throw new Error(
+      `Invalid type: '${type}'. Expected one of: ${VALID_TYPES.join(', ')}`
+    )
+  }
   switch (type) {
     case 'number': {
       if (value.trim() === '')
@@ -141,7 +153,7 @@ export async function modifyJsonFile(
   fileName: string,
   properties: ModifyProperty[],
   options?: ModifyOptions
-): Promise<ModifyResult[]> {
+): Promise<ModifyFileResult> {
   const filePath = path.resolve(process.cwd(), fileName)
 
   try {
@@ -154,7 +166,7 @@ export async function modifyJsonFile(
   const content = await fs.readFile(filePath, 'utf8')
 
   const errors: ParseError[] = []
-  const parsed = parse(content, errors)
+  const parsed = parse(content, errors, {allowTrailingComma: true})
 
   const criticalErrors = errors.filter(
     e => e.error !== ParseErrorCode.InvalidCommentToken
@@ -166,7 +178,7 @@ export async function modifyJsonFile(
   }
 
   if (properties.length === 0) {
-    return []
+    return {results: [], modified: false}
   }
 
   const formattingOptions = detectFormatting(content)
@@ -179,10 +191,16 @@ export async function modifyJsonFile(
 
     if (prop.delete) {
       core.info(`Deleting ${prop.key}`)
-      const edits = modify(modifiedContent, jsonPath, undefined, {
-        formattingOptions
-      })
-      modifiedContent = applyEdits(modifiedContent, edits)
+      try {
+        const edits = modify(modifiedContent, jsonPath, undefined, {
+          formattingOptions
+        })
+        modifiedContent = applyEdits(modifiedContent, edits)
+      } catch (e) {
+        throw new Error(
+          `Failed to delete '${prop.key}': ${e instanceof Error ? e.message : String(e)}`
+        )
+      }
       results.push({key: prop.key, oldValue, newValue: undefined})
     } else {
       if (prop.value === undefined) {
@@ -192,21 +210,35 @@ export async function modifyJsonFile(
       core.info(
         `Setting ${prop.key} = ${prop.value}${prop.type && prop.type !== 'string' ? ` (${prop.type})` : ''}`
       )
-      const edits = modify(modifiedContent, jsonPath, newValue, {
-        formattingOptions
-      })
-      modifiedContent = applyEdits(modifiedContent, edits)
+      try {
+        const edits = modify(modifiedContent, jsonPath, newValue, {
+          formattingOptions
+        })
+        modifiedContent = applyEdits(modifiedContent, edits)
+      } catch (e) {
+        throw new Error(
+          `Failed to set '${prop.key}': ${e instanceof Error ? e.message : String(e)}`
+        )
+      }
       results.push({key: prop.key, oldValue, newValue})
     }
   }
 
+  const modified = content !== modifiedContent
+
   if (options?.dryRun) {
     core.info(`[Dry run] Would update ${fileName}`)
-    core.info(`[Dry run] New content:\n${modifiedContent}`)
-  } else {
+    if (modified) {
+      core.info(`[Dry run] New content:\n${modifiedContent}`)
+    } else {
+      core.info(`[Dry run] No changes detected`)
+    }
+  } else if (modified) {
     await fs.writeFile(filePath, modifiedContent, 'utf8')
     core.info(`Successfully updated ${fileName}`)
+  } else {
+    core.info(`No changes needed for ${fileName}`)
   }
 
-  return results
+  return {results, modified}
 }
