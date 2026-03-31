@@ -33587,12 +33587,22 @@ const run = () => __awaiter(void 0, void 0, void 0, function* () {
                 commitArgs.push('--signoff');
             }
             yield exec.exec('git', commitArgs);
-            yield exec.exec('git', [
-                'push',
-                '-u',
-                'origin',
-                `HEAD:${process.env.GITHUB_HEAD_REF || process.env.GITHUB_REF}`
-            ]);
+            let pushRef;
+            if (process.env.GITHUB_HEAD_REF) {
+                pushRef = process.env.GITHUB_HEAD_REF;
+            }
+            else {
+                let currentBranch = '';
+                yield exec.exec('git', ['branch', '--show-current'], {
+                    listeners: {
+                        stdout: (data) => {
+                            currentBranch += data.toString();
+                        }
+                    }
+                });
+                pushRef = `refs/heads/${currentBranch.trim()}`;
+            }
+            yield exec.exec('git', ['push', '-u', 'origin', `HEAD:${pushRef}`]);
             core.info('File has been successfully committed and pushed');
         }
         else if (!isCommit) {

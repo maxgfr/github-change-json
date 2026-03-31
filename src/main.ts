@@ -160,12 +160,22 @@ export const run = async (): Promise<void> => {
         commitArgs.push('--signoff')
       }
       await exec.exec('git', commitArgs)
-      await exec.exec('git', [
-        'push',
-        '-u',
-        'origin',
-        `HEAD:${process.env.GITHUB_HEAD_REF || process.env.GITHUB_REF}`
-      ])
+
+      let pushRef: string
+      if (process.env.GITHUB_HEAD_REF) {
+        pushRef = process.env.GITHUB_HEAD_REF
+      } else {
+        let currentBranch = ''
+        await exec.exec('git', ['branch', '--show-current'], {
+          listeners: {
+            stdout: (data: Buffer) => {
+              currentBranch += data.toString()
+            }
+          }
+        })
+        pushRef = `refs/heads/${currentBranch.trim()}`
+      }
+      await exec.exec('git', ['push', '-u', 'origin', `HEAD:${pushRef}`])
       core.info('File has been successfully committed and pushed')
     } else if (!isCommit) {
       core.info('Skipping commit files')

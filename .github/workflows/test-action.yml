@@ -16,6 +16,9 @@ jobs:
       - name: Get commit sha
         run: echo "GITHUB_SHA=${GITHUB_SHA}" >> $GITHUB_ENV
 
+      - name: Create temp branch for commit test
+        run: git checkout -b test-basic-${{ github.run_id }}
+
       - name: Modify name with commit
         uses: ./
         with:
@@ -23,8 +26,6 @@ jobs:
           value: '@maxgfr/example-${{ env.GITHUB_SHA }}'
           path: example/package.json
           commit: true
-        env:
-          GITHUB_HEAD_REF: refs/heads/test-basic-${{ github.run_id }}
 
       - name: Modify name locally
         uses: ./
@@ -801,6 +802,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Create temp branch for signoff test
+        run: git checkout -b test-signoff-${{ github.run_id }}
+
       - name: Modify with commit + signoff
         uses: ./
         with:
@@ -809,8 +813,6 @@ jobs:
           path: example/package.json
           commit: true
           signoff: true
-        env:
-          GITHUB_HEAD_REF: refs/heads/test-signoff-${{ github.run_id }}
 
       - name: Verify commit has Signed-off-by trailer
         run: |
@@ -832,8 +834,6 @@ jobs:
           path: example/package.json
           commit: true
           signoff: false
-        env:
-          GITHUB_HEAD_REF: refs/heads/test-signoff-${{ github.run_id }}
 
       - name: Verify commit does NOT have Signed-off-by trailer
         run: |

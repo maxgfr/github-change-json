@@ -132,6 +132,17 @@ describe('main', () => {
         if (name === 'dry-run') return false
         return false
       })
+      mockExec.mockImplementation(async (_cmd, args, options) => {
+        if (
+          args &&
+          args[0] === 'branch' &&
+          args[1] === '--show-current' &&
+          options?.listeners?.stdout
+        ) {
+          options.listeners.stdout(Buffer.from('main'))
+        }
+        return 0
+      })
       process.env.GITHUB_ACTOR = 'test-user'
       process.env.GITHUB_REF = 'refs/heads/main'
     })
