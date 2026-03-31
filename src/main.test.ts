@@ -96,6 +96,7 @@ describe('main', () => {
       if (name === 'dry-run') return false
       if (name === 'merge') return false
       if (name === 'create-if-missing') return false
+      if (name === 'signoff') return false
       return false
     })
     mockExec.mockResolvedValue(0)
@@ -782,6 +783,74 @@ describe('main', () => {
       const msg = commitCall?.[1]?.[2] as string
       expect(msg.length).toBeLessThan(120)
       expect(msg).toContain('...')
+    })
+  })
+
+  describe('signoff', () => {
+    beforeEach(() => {
+      process.env.GITHUB_ACTOR = 'test-user'
+      process.env.GITHUB_REF = 'refs/heads/main'
+    })
+
+    afterEach(() => {
+      delete process.env.GITHUB_ACTOR
+      delete process.env.GITHUB_REF
+    })
+
+    it('should add --signoff flag when signoff is true', async () => {
+      mockGetBooleanInput.mockImplementation(name => {
+        if (name === 'commit') return true
+        if (name === 'signoff') return true
+        if (name === 'delete') return false
+        if (name === 'dry-run') return false
+        if (name === 'merge') return false
+        if (name === 'create-if-missing') return false
+        return false
+      })
+
+      await run()
+
+      const commitCall = mockExec.mock.calls.find(
+        c => c[1]?.[0] === 'commit'
+      )
+      expect(commitCall).toBeDefined()
+      expect(commitCall![1]).toContain('--signoff')
+    })
+
+    it('should not add --signoff flag when signoff is false', async () => {
+      mockGetBooleanInput.mockImplementation(name => {
+        if (name === 'commit') return true
+        if (name === 'signoff') return false
+        if (name === 'delete') return false
+        if (name === 'dry-run') return false
+        if (name === 'merge') return false
+        if (name === 'create-if-missing') return false
+        return false
+      })
+
+      await run()
+
+      const commitCall = mockExec.mock.calls.find(
+        c => c[1]?.[0] === 'commit'
+      )
+      expect(commitCall).toBeDefined()
+      expect(commitCall![1]).not.toContain('--signoff')
+    })
+
+    it('should not signoff without commit', async () => {
+      mockGetBooleanInput.mockImplementation(name => {
+        if (name === 'commit') return false
+        if (name === 'signoff') return true
+        if (name === 'delete') return false
+        if (name === 'dry-run') return false
+        if (name === 'merge') return false
+        if (name === 'create-if-missing') return false
+        return false
+      })
+
+      await run()
+
+      expect(mockExec).not.toHaveBeenCalled()
     })
   })
 

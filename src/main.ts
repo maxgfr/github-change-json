@@ -17,6 +17,7 @@ export const run = async (): Promise<void> => {
   try {
     core.info('Setting input and environment variables')
     const isCommit = core.getBooleanInput('commit', {required: false})
+    const isSignoff = core.getBooleanInput('signoff', {required: false})
     const isDryRun = core.getBooleanInput('dry-run', {required: false})
     const createIfMissing = core.getBooleanInput('create-if-missing', {
       required: false
@@ -154,12 +155,11 @@ export const run = async (): Promise<void> => {
         commitMessage = `chore: update ${filePath} with ${properties.length} changes`
       }
 
-      await exec.exec('git', [
-        'commit',
-        '-am',
-        commitMessage,
-        '--no-verify'
-      ])
+      const commitArgs = ['commit', '-am', commitMessage, '--no-verify']
+      if (isSignoff) {
+        commitArgs.push('--signoff')
+      }
+      await exec.exec('git', commitArgs)
       await exec.exec('git', [
         'push',
         '-u',

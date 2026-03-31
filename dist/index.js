@@ -33469,6 +33469,7 @@ const run = () => __awaiter(void 0, void 0, void 0, function* () {
     try {
         core.info('Setting input and environment variables');
         const isCommit = core.getBooleanInput('commit', { required: false });
+        const isSignoff = core.getBooleanInput('signoff', { required: false });
         const isDryRun = core.getBooleanInput('dry-run', { required: false });
         const createIfMissing = core.getBooleanInput('create-if-missing', {
             required: false
@@ -33581,12 +33582,11 @@ const run = () => __awaiter(void 0, void 0, void 0, function* () {
             else {
                 commitMessage = `chore: update ${filePath} with ${properties.length} changes`;
             }
-            yield exec.exec('git', [
-                'commit',
-                '-am',
-                commitMessage,
-                '--no-verify'
-            ]);
+            const commitArgs = ['commit', '-am', commitMessage, '--no-verify'];
+            if (isSignoff) {
+                commitArgs.push('--signoff');
+            }
+            yield exec.exec('git', commitArgs);
             yield exec.exec('git', [
                 'push',
                 '-u',

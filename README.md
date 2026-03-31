@@ -25,6 +25,41 @@ This action handles all of these by modifying your JSON file in-place, preservin
     path: package.json
 ```
 
+## Full Workflow Example
+
+```yaml
+name: Release
+on:
+  push:
+    branches: [main]
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set scoped name for GitHub Packages
+        uses: maxgfr/github-change-json@main
+        with:
+          key: 'name'
+          value: '@my-org/my-package'
+          path: package.json
+
+      - name: Bump version and add build metadata
+        uses: maxgfr/github-change-json@main
+        with:
+          path: package.json
+          changes: |
+            [
+              {"key": "version", "value": "2.0.0"},
+              {"key": "private", "value": "false", "type": "boolean"},
+              {"key": "scripts", "value": "{\"prepublish\": \"tsc\"}", "merge": true}
+            ]
+          schema: schemas/package.schema.json
+          commit: true
+```
+
 ## Examples
 
 ### Nested Keys (dot notation)
@@ -171,6 +206,22 @@ Preview what would change without modifying the file:
     commit: true
 ```
 
+### Commit with Sign-off (DCO)
+
+Add a `Signed-off-by` trailer to the commit message for [DCO](https://developercertificate.org/) compliance:
+
+```yaml
+- uses: maxgfr/github-change-json@main
+  with:
+    key: 'version'
+    value: '2.0.0'
+    path: package.json
+    commit: true
+    signoff: true
+# Commit message will include:
+# Signed-off-by: <GITHUB_ACTOR> <<GITHUB_ACTOR>@users.noreply.github.com>
+```
+
 ### Use Outputs
 
 ```yaml
@@ -198,6 +249,7 @@ Preview what would change without modifying the file:
 | `value` | string | no\* | -- | Value to set (always passed as a string, converted via `type`) |
 | `type` | string | no | `string` | Value type: `string`, `number`, `boolean`, or `json` |
 | `commit` | boolean | no | `false` | Commit and push changes |
+| `signoff` | boolean | no | `false` | Add `Signed-off-by` trailer to the commit message (DCO) |
 | `delete` | boolean | no | `false` | Delete the key instead of setting a value |
 | `merge` | boolean | no | `false` | Deep merge a JSON object into the existing value |
 | `dry-run` | boolean | no | `false` | Preview changes without writing to disk |
@@ -239,21 +291,32 @@ The action detects and preserves the original file's:
 ### Commit Behavior
 
 When `commit: true`:
-- Git user is set to `GITHUB_ACTOR` (or `github-actions[bot]`)
-- Commit message: `chore: update <path> (set <key>=<value>)` (values are truncated if long)
-- Pushed to the triggering branch
+- Git user name is set to `GITHUB_ACTOR` (fallback: `github-actions[bot]`)
+- Git user email is set to `<GITHUB_ACTOR>@users.noreply.github.com` (fallback: `github-actions@users.noreply.github.com`)
+- Commit message format:
+  - Single key: `chore: update <path> (set <key>=<value>)` / `(delete <key>)` / `(merge <key>=<value>)`
+  - Multiple changes: `chore: update <path> with N changes`
+  - Long values are truncated to 50 characters in the commit message
+- Pushed to `GITHUB_HEAD_REF` (PR source branch) or `GITHUB_REF` (current ref) as fallback
+- Pre-commit hooks are bypassed (`--no-verify`)
+- When `signoff: true`, adds `Signed-off-by: Name <email>` trailer via `--signoff`
 - Skipped in `dry-run` mode
 
 ### Error Handling
 
 The action fails with a clear message when:
 - File not found (and `create-if-missing` is `false`)
-- Invalid JSON/JSONC syntax
-- Invalid type conversion (`type: number` with `value: abc`)
-- Invalid `type` value (`integer`, `float`, etc.)
-- Conflicting flags (`delete` + `merge`)
-- Non-string `value` in `changes` array
-- Schema validation failure
+- Invalid JSON/JSONC syntax in the target file
+- Invalid type conversion (`type: number` with `value: abc`, `NaN`, `Infinity`)
+- Invalid `type` value (anything other than `string`, `number`, `boolean`, `json`)
+- Conflicting flags (`delete` + `merge` both true)
+- Non-string `value` in `changes` array (e.g. `{"value": 42}` instead of `{"value": "42"}`)
+- Missing required fields (`key` or `value` when needed)
+- Invalid `changes` input (not valid JSON, not an array, missing `key`)
+- Merge with non-JSON or non-object value
+- Schema validation failure (with detailed per-field error messages)
+- Schema file not found, invalid JSON, or invalid schema structure
+- Schema URL fetch failure or timeout (30s)
 - Setting a nested path through a primitive (`name.sub` when `name` is a string)
 
 ### Limitations

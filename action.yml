@@ -27,6 +27,11 @@ inputs:
     type: boolean
     description: Boolean flag to commit and push the changes to the repository
     default: false
+  signoff:
+    required: false
+    type: boolean
+    description: Add Signed-off-by trailer to the commit message (for DCO compliance)
+    default: false
   delete:
     required: false
     type: boolean

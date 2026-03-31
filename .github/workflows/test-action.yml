@@ -788,3 +788,51 @@ jobs:
             echo "❌ Should have failed without create-if-missing"
             exit 1
           fi
+
+  test-signoff:
+    name: Commit with signoff
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Modify with commit + signoff
+        uses: ./
+        with:
+          key: 'name'
+          value: 'signoff-test'
+          path: example/package.json
+          commit: true
+          signoff: true
+
+      - name: Verify commit has Signed-off-by trailer
+        run: |
+          LAST_COMMIT=$(git log -1 --pretty=format:%B)
+          echo "Last commit message:"
+          echo "$LAST_COMMIT"
+          if echo "$LAST_COMMIT" | grep -q "Signed-off-by:"; then
+            echo "✅ Signed-off-by trailer PASSED"
+          else
+            echo "❌ Signed-off-by trailer FAILED"
+            exit 1
+          fi
+
+      - name: Modify with commit without signoff
+        uses: ./
+        with:
+          key: 'name'
+          value: 'no-signoff-test'
+          path: example/package.json
+          commit: true
+          signoff: false
+
+      - name: Verify commit does NOT have Signed-off-by trailer
+        run: |
+          LAST_COMMIT=$(git log -1 --pretty=format:%B)
+          echo "Last commit message:"
+          echo "$LAST_COMMIT"
+          if echo "$LAST_COMMIT" | grep -q "Signed-off-by:"; then
+            echo "❌ Signed-off-by should NOT be present"
+            exit 1
+          else
+            echo "✅ No Signed-off-by trailer PASSED"
+          fi
