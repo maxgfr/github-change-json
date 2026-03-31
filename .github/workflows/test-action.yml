@@ -23,6 +23,8 @@ jobs:
           value: '@maxgfr/example-${{ env.GITHUB_SHA }}'
           path: example/package.json
           commit: true
+        env:
+          GITHUB_HEAD_REF: refs/heads/test-basic-${{ github.run_id }}
 
       - name: Modify name locally
         uses: ./
@@ -41,6 +43,10 @@ jobs:
             echo "❌ Basic modification FAILED"
             exit 1
           fi
+
+      - name: Cleanup test branch
+        if: always()
+        run: git push origin --delete test-basic-${{ github.run_id }} 2>/dev/null || true
 
   test-nested-keys:
     name: Nested key support
@@ -803,6 +809,8 @@ jobs:
           path: example/package.json
           commit: true
           signoff: true
+        env:
+          GITHUB_HEAD_REF: refs/heads/test-signoff-${{ github.run_id }}
 
       - name: Verify commit has Signed-off-by trailer
         run: |
@@ -824,6 +832,8 @@ jobs:
           path: example/package.json
           commit: true
           signoff: false
+        env:
+          GITHUB_HEAD_REF: refs/heads/test-signoff-${{ github.run_id }}
 
       - name: Verify commit does NOT have Signed-off-by trailer
         run: |
@@ -836,3 +846,7 @@ jobs:
           else
             echo "✅ No Signed-off-by trailer PASSED"
           fi
+
+      - name: Cleanup test branch
+        if: always()
+        run: git push origin --delete test-signoff-${{ github.run_id }} 2>/dev/null || true
