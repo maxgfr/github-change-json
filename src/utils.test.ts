@@ -53,13 +53,9 @@ describe('parseValue', () => {
   })
 
   it('should throw on invalid boolean', () => {
-    expect(() => parseValue('yes', 'boolean')).toThrow(
-      'Invalid boolean value'
-    )
+    expect(() => parseValue('yes', 'boolean')).toThrow('Invalid boolean value')
     expect(() => parseValue('1', 'boolean')).toThrow('Invalid boolean value')
-    expect(() => parseValue('TRUE', 'boolean')).toThrow(
-      'Invalid boolean value'
-    )
+    expect(() => parseValue('TRUE', 'boolean')).toThrow('Invalid boolean value')
   })
 
   it('should parse json type', () => {
@@ -77,9 +73,7 @@ describe('parseValue', () => {
     expect(() => parseValue('hello', 'integer')).toThrow(
       "Invalid type: 'integer'"
     )
-    expect(() => parseValue('hello', 'float')).toThrow(
-      "Invalid type: 'float'"
-    )
+    expect(() => parseValue('hello', 'float')).toThrow("Invalid type: 'float'")
   })
 })
 
@@ -230,9 +224,7 @@ describe('validateJsonSchema', () => {
 
     const content = JSON.stringify({name: 'test', version: '1.0.0'})
 
-    await expect(
-      validateJsonSchema(content, schemaPath)
-    ).resolves.not.toThrow()
+    await expect(validateJsonSchema(content, schemaPath)).resolves.not.toThrow()
   })
 
   it('should fail when required field is missing', async () => {
@@ -283,9 +275,9 @@ describe('validateJsonSchema', () => {
     await fs.writeFile(schemaPath, 'not json', 'utf8')
 
     const content = JSON.stringify({name: 'test'})
-    await expect(
-      validateJsonSchema(content, schemaPath)
-    ).rejects.toThrow('Invalid JSON in schema file')
+    await expect(validateJsonSchema(content, schemaPath)).rejects.toThrow(
+      'Invalid JSON in schema file'
+    )
   })
 
   it('should validate JSONC content', async () => {
@@ -299,9 +291,80 @@ describe('validateJsonSchema', () => {
 
     const content = '{\n  // comment\n  "name": "test"\n}'
 
-    await expect(
-      validateJsonSchema(content, schemaPath)
-    ).resolves.not.toThrow()
+    await expect(validateJsonSchema(content, schemaPath)).resolves.not.toThrow()
+  })
+
+  describe('schema drafts', () => {
+    it('should support a draft 2020-12 schema', async () => {
+      const schema = {
+        $schema: 'https://json-schema.org/draft/2020-12/schema',
+        type: 'object',
+        required: ['name'],
+        properties: {
+          name: {type: 'string'},
+          tags: {type: 'array', prefixItems: [{type: 'string'}]}
+        }
+      }
+      const schemaPath = path.join(tempDir, '2020-12.schema.json')
+      await fs.writeFile(schemaPath, JSON.stringify(schema), 'utf8')
+
+      const content = JSON.stringify({name: 'test', tags: ['a', 'b']})
+
+      await expect(
+        validateJsonSchema(content, schemaPath)
+      ).resolves.not.toThrow()
+    })
+
+    it('should enforce 2020-12 keywords like prefixItems', async () => {
+      const schema = {
+        $schema: 'https://json-schema.org/draft/2020-12/schema',
+        type: 'object',
+        properties: {
+          tags: {type: 'array', prefixItems: [{type: 'string'}]}
+        }
+      }
+      const schemaPath = path.join(tempDir, '2020-12-fail.schema.json')
+      await fs.writeFile(schemaPath, JSON.stringify(schema), 'utf8')
+
+      const content = JSON.stringify({tags: [123]})
+
+      await expect(validateJsonSchema(content, schemaPath)).rejects.toThrow(
+        'Schema validation failed'
+      )
+    })
+
+    it('should support a draft 2019-09 schema', async () => {
+      const schema = {
+        $schema: 'https://json-schema.org/draft/2019-09/schema',
+        type: 'object',
+        required: ['name'],
+        properties: {name: {type: 'string'}}
+      }
+      const schemaPath = path.join(tempDir, '2019-09.schema.json')
+      await fs.writeFile(schemaPath, JSON.stringify(schema), 'utf8')
+
+      await expect(
+        validateJsonSchema(JSON.stringify({name: 'test'}), schemaPath)
+      ).resolves.not.toThrow()
+      await expect(
+        validateJsonSchema(JSON.stringify({}), schemaPath)
+      ).rejects.toThrow('Schema validation failed')
+    })
+
+    it('should still support draft-07 schemas with an explicit $schema', async () => {
+      const schema = {
+        $schema: 'http://json-schema.org/draft-07/schema#',
+        type: 'object',
+        required: ['name'],
+        properties: {name: {type: 'string'}}
+      }
+      const schemaPath = path.join(tempDir, 'draft-07.schema.json')
+      await fs.writeFile(schemaPath, JSON.stringify(schema), 'utf8')
+
+      await expect(
+        validateJsonSchema(JSON.stringify({name: 'test'}), schemaPath)
+      ).resolves.not.toThrow()
+    })
   })
 })
 
@@ -462,13 +525,47 @@ describe('modifyJsonFile', () => {
 
       expect(modified).toBe(false)
     })
+
+    it('should report oldValue from the current document state for repeated keys', async () => {
+      const {results} = await modifyJsonFile('test.json', [
+        {key: 'name', value: 'first'},
+        {key: 'name', value: 'second'}
+      ])
+
+      expect(results[0].oldValue).toBe('test')
+      expect(results[0].newValue).toBe('first')
+      expect(results[1].oldValue).toBe('first')
+      expect(results[1].newValue).toBe('second')
+    })
+
+    it('should report oldValue set by an earlier change on a nested path', async () => {
+      const {results} = await modifyJsonFile('test.json', [
+        {key: 'nested.value', value: 'updated'},
+        {key: 'nested.value', delete: true}
+      ])
+
+      expect(results[1].oldValue).toBe('updated')
+      expect(results[1].newValue).toBeUndefined()
+    })
+
+    it('should merge on top of a value set earlier in the same batch', async () => {
+      const {results} = await modifyJsonFile('test.json', [
+        {key: 'config', value: '{"host":"localhost"}', type: 'json'},
+        {key: 'config', value: '{"port":8080}', merge: true}
+      ])
+
+      expect(results[1].oldValue).toEqual({host: 'localhost'})
+      expect(results[1].newValue).toEqual({host: 'localhost', port: 8080})
+
+      const content = await fs.readFile(testFilePath, 'utf8')
+      const json = JSON.parse(content)
+      expect(json.config).toEqual({host: 'localhost', port: 8080})
+    })
   })
 
   describe('nested key support', () => {
     it('should modify existing nested key', async () => {
-      await modifyJsonFile('test.json', [
-        {key: 'nested.value', value: 'new'}
-      ])
+      await modifyJsonFile('test.json', [{key: 'nested.value', value: 'new'}])
 
       const content = await fs.readFile(testFilePath, 'utf8')
       const json = JSON.parse(content)
@@ -540,9 +637,7 @@ describe('modifyJsonFile', () => {
     })
 
     it('should modify an array element by index', async () => {
-      await modifyJsonFile('test.json', [
-        {key: 'items.1', value: 'blueberry'}
-      ])
+      await modifyJsonFile('test.json', [{key: 'items.1', value: 'blueberry'}])
 
       const content = await fs.readFile(testFilePath, 'utf8')
       const json = JSON.parse(content)
@@ -739,21 +834,17 @@ describe('modifyJsonFile', () => {
 
     it('should pass when modification produces valid result', async () => {
       await expect(
-        modifyJsonFile(
-          'test.json',
-          [{key: 'name', value: 'valid-name'}],
-          {schema: 'schema.json'}
-        )
+        modifyJsonFile('test.json', [{key: 'name', value: 'valid-name'}], {
+          schema: 'schema.json'
+        })
       ).resolves.toBeDefined()
     })
 
     it('should reject when modification violates schema (missing required)', async () => {
       await expect(
-        modifyJsonFile(
-          'test.json',
-          [{key: 'version', delete: true}],
-          {schema: 'schema.json'}
-        )
+        modifyJsonFile('test.json', [{key: 'version', delete: true}], {
+          schema: 'schema.json'
+        })
       ).rejects.toThrow('Schema validation failed')
     })
 
@@ -770,11 +861,9 @@ describe('modifyJsonFile', () => {
       )
 
       await expect(
-        modifyJsonFile(
-          'test.json',
-          [{key: 'name', value: 'still-a-string'}],
-          {schema: 'schema.json'}
-        )
+        modifyJsonFile('test.json', [{key: 'name', value: 'still-a-string'}], {
+          schema: 'schema.json'
+        })
       ).rejects.toThrow('Schema validation failed')
     })
 
@@ -782,11 +871,9 @@ describe('modifyJsonFile', () => {
       const originalContent = await fs.readFile(testFilePath, 'utf8')
 
       try {
-        await modifyJsonFile(
-          'test.json',
-          [{key: 'version', delete: true}],
-          {schema: 'schema.json'}
-        )
+        await modifyJsonFile('test.json', [{key: 'version', delete: true}], {
+          schema: 'schema.json'
+        })
       } catch {
         // Expected
       }
@@ -797,21 +884,18 @@ describe('modifyJsonFile', () => {
 
     it('should validate in dry-run mode too', async () => {
       await expect(
-        modifyJsonFile(
-          'test.json',
-          [{key: 'version', delete: true}],
-          {schema: 'schema.json', dryRun: true}
-        )
+        modifyJsonFile('test.json', [{key: 'version', delete: true}], {
+          schema: 'schema.json',
+          dryRun: true
+        })
       ).rejects.toThrow('Schema validation failed')
     })
 
     it('should throw on missing schema file', async () => {
       await expect(
-        modifyJsonFile(
-          'test.json',
-          [{key: 'name', value: 'val'}],
-          {schema: 'nonexistent.schema.json'}
-        )
+        modifyJsonFile('test.json', [{key: 'name', value: 'val'}], {
+          schema: 'nonexistent.schema.json'
+        })
       ).rejects.toThrow('Schema file not found')
     })
   })
@@ -977,11 +1061,9 @@ describe('modifyJsonFile', () => {
     it('should not modify file in dry-run mode', async () => {
       const originalContent = await fs.readFile(testFilePath, 'utf8')
 
-      await modifyJsonFile(
-        'test.json',
-        [{key: 'name', value: 'modified'}],
-        {dryRun: true}
-      )
+      await modifyJsonFile('test.json', [{key: 'name', value: 'modified'}], {
+        dryRun: true
+      })
 
       const content = await fs.readFile(testFilePath, 'utf8')
       expect(content).toBe(originalContent)
@@ -1099,8 +1181,7 @@ describe('modifyJsonFile', () => {
     })
 
     it('should preserve 4-space indentation', async () => {
-      const content4space =
-        '{\n    "name": "test",\n    "version": "1.0.0"\n}'
+      const content4space = '{\n    "name": "test",\n    "version": "1.0.0"\n}'
       await fs.writeFile(testFilePath, content4space, 'utf8')
 
       await modifyJsonFile('test.json', [{key: 'name', value: 'modified'}])
@@ -1120,8 +1201,7 @@ describe('modifyJsonFile', () => {
     })
 
     it('should preserve CRLF line endings', async () => {
-      const contentCRLF =
-        '{\r\n  "name": "test",\r\n  "version": "1.0.0"\r\n}'
+      const contentCRLF = '{\r\n  "name": "test",\r\n  "version": "1.0.0"\r\n}'
       await fs.writeFile(testFilePath, contentCRLF, 'utf8')
 
       await modifyJsonFile('test.json', [{key: 'name', value: 'modified'}])
@@ -1317,11 +1397,9 @@ describe('modifyJsonFile', () => {
     })
 
     it('should not create file if it already exists', async () => {
-      await modifyJsonFile(
-        'test.json',
-        [{key: 'name', value: 'modified'}],
-        {createIfMissing: true}
-      )
+      await modifyJsonFile('test.json', [{key: 'name', value: 'modified'}], {
+        createIfMissing: true
+      })
 
       const content = await fs.readFile(testFilePath, 'utf8')
       const json = JSON.parse(content)

@@ -18,7 +18,8 @@ jest.mock('@actions/exec', () => ({
 jest.mock('fs/promises', () => ({
   readFile: jest.fn(),
   writeFile: jest.fn(),
-  access: jest.fn()
+  access: jest.fn(),
+  mkdir: jest.fn()
 }))
 
 // Mock jsonc-parser
@@ -167,12 +168,68 @@ describe('main', () => {
         'user.email',
         'test-user@users.noreply.github.com'
       ])
+      expect(mockExec).toHaveBeenCalledWith('git', ['add', '--', 'test.json'])
       expect(mockExec).toHaveBeenCalledWith('git', [
         'commit',
-        '-am',
+        '-m',
         expect.stringContaining('update test.json (set name=test-value)'),
         '--no-verify'
       ])
+    })
+
+    it('should stage only the target file before committing', async () => {
+      await run()
+
+      const addCallIndex = mockExec.mock.calls.findIndex(
+        c => c[1]?.[0] === 'add'
+      )
+      const commitCallIndex = mockExec.mock.calls.findIndex(
+        c => c[1]?.[0] === 'commit'
+      )
+      expect(addCallIndex).toBeGreaterThanOrEqual(0)
+      expect(commitCallIndex).toBeGreaterThan(addCallIndex)
+      expect(mockExec.mock.calls[addCallIndex][1]).toEqual([
+        'add',
+        '--',
+        'test.json'
+      ])
+    })
+
+    it('should stage a newly created file when create-if-missing is enabled', async () => {
+      mockGetBooleanInput.mockImplementation(name => {
+        if (name === 'commit') return true
+        if (name === 'create-if-missing') return true
+        return false
+      })
+      ;(fs.access as jest.MockedFunction<typeof fs.access>).mockRejectedValue(
+        new Error('ENOENT')
+      )
+
+      await run()
+
+      expect(mockSetFailed).not.toHaveBeenCalled()
+      expect(mockExec).toHaveBeenCalledWith('git', ['add', '--', 'test.json'])
+      expect(mockExec).toHaveBeenCalledWith('git', [
+        'commit',
+        '-m',
+        expect.stringContaining('update test.json'),
+        '--no-verify'
+      ])
+    })
+
+    it('should skip committing when the file was not modified', async () => {
+      ;(
+        fs.readFile as jest.MockedFunction<typeof fs.readFile>
+      ).mockResolvedValue(JSON.stringify({name: 'test-value'}, null, 2))
+
+      await run()
+
+      expect(mockSetFailed).not.toHaveBeenCalled()
+      expect(mockExec).not.toHaveBeenCalled()
+      expect(mockSetOutput).toHaveBeenCalledWith('modified', 'false')
+      expect(mockInfo).toHaveBeenCalledWith(
+        'No changes detected, skipping commit'
+      )
     })
 
     it('should push changes to the correct branch', async () => {
@@ -348,8 +405,7 @@ describe('main', () => {
     it('should fail when change item is missing key', async () => {
       mockGetInput.mockImplementation(name => {
         if (name === 'path') return 'test.json'
-        if (name === 'changes')
-          return JSON.stringify([{value: 'test'}])
+        if (name === 'changes') return JSON.stringify([{value: 'test'}])
         return ''
       })
 
@@ -363,8 +419,7 @@ describe('main', () => {
     it('should fail when change item is missing value and not deleting', async () => {
       mockGetInput.mockImplementation(name => {
         if (name === 'path') return 'test.json'
-        if (name === 'changes')
-          return JSON.stringify([{key: 'name'}])
+        if (name === 'changes') return JSON.stringify([{key: 'name'}])
         return ''
       })
 
@@ -598,14 +653,13 @@ describe('main', () => {
     it('should set modified output', async () => {
       await run()
 
-      expect(mockSetOutput).toHaveBeenCalledWith(
-        'modified',
-        expect.any(String)
-      )
+      expect(mockSetOutput).toHaveBeenCalledWith('modified', expect.any(String))
     })
 
     it('should JSON.stringify old-value when it is an object', async () => {
-      ;(fs.readFile as jest.MockedFunction<typeof fs.readFile>).mockResolvedValue(
+      ;(
+        fs.readFile as jest.MockedFunction<typeof fs.readFile>
+      ).mockResolvedValue(
         JSON.stringify({scripts: {build: 'tsc', test: 'jest'}}, null, 2)
       )
       mockGetInput.mockImplementation(name => {
@@ -665,6 +719,20 @@ describe('main', () => {
       expect(mockSetFailed).toHaveBeenCalledWith(
         expect.stringContaining("'value' input is required when not deleting")
       )
+    })
+
+    it('should accept an empty string value in changes array', async () => {
+      mockGetInput.mockImplementation(name => {
+        if (name === 'path') return 'test.json'
+        if (name === 'changes')
+          return JSON.stringify([{key: 'name', value: ''}])
+        return ''
+      })
+
+      await run()
+
+      expect(mockSetFailed).not.toHaveBeenCalled()
+      expect(mockSetOutput).toHaveBeenCalledWith('new-value', '')
     })
 
     it('should pass required inputs correctly', async () => {
@@ -743,13 +811,22 @@ describe('main', () => {
 
       expect(mockExec).toHaveBeenCalledWith('git', [
         'commit',
-        '-am',
+        '-m',
         'chore: update test.json with 2 changes',
         '--no-verify'
       ])
     })
 
     it('should include delete in commit message for single delete', async () => {
+      ;(
+        fs.readFile as jest.MockedFunction<typeof fs.readFile>
+      ).mockResolvedValue(
+        JSON.stringify(
+          {name: 'old', devDependencies: {jest: '^29.0.0'}},
+          null,
+          2
+        )
+      )
       mockGetInput.mockImplementation(name => {
         if (name === 'path') return 'test.json'
         if (name === 'key') return 'devDependencies'
@@ -769,7 +846,7 @@ describe('main', () => {
 
       expect(mockExec).toHaveBeenCalledWith('git', [
         'commit',
-        '-am',
+        '-m',
         'chore: update test.json (delete devDependencies)',
         '--no-verify'
       ])
@@ -788,9 +865,7 @@ describe('main', () => {
 
       await run()
 
-      const commitCall = mockExec.mock.calls.find(
-        c => c[1]?.[0] === 'commit'
-      )
+      const commitCall = mockExec.mock.calls.find(c => c[1]?.[0] === 'commit')
       const msg = commitCall?.[1]?.[2] as string
       expect(msg.length).toBeLessThan(120)
       expect(msg).toContain('...')
@@ -821,9 +896,7 @@ describe('main', () => {
 
       await run()
 
-      const commitCall = mockExec.mock.calls.find(
-        c => c[1]?.[0] === 'commit'
-      )
+      const commitCall = mockExec.mock.calls.find(c => c[1]?.[0] === 'commit')
       expect(commitCall).toBeDefined()
       expect(commitCall![1]).toContain('--signoff')
     })
@@ -841,9 +914,7 @@ describe('main', () => {
 
       await run()
 
-      const commitCall = mockExec.mock.calls.find(
-        c => c[1]?.[0] === 'commit'
-      )
+      const commitCall = mockExec.mock.calls.find(c => c[1]?.[0] === 'commit')
       expect(commitCall).toBeDefined()
       expect(commitCall![1]).not.toContain('--signoff')
     })
@@ -959,8 +1030,7 @@ describe('main', () => {
     it('should fail when change value is a boolean instead of string', async () => {
       mockGetInput.mockImplementation(name => {
         if (name === 'path') return 'test.json'
-        if (name === 'changes')
-          return '[{"key": "debug", "value": true}]'
+        if (name === 'changes') return '[{"key": "debug", "value": true}]'
         return ''
       })
 

@@ -7,7 +7,9 @@ import {
   type FormattingOptions,
   type ParseError
 } from 'jsonc-parser'
-import Ajv from 'ajv'
+import Ajv, {type ValidateFunction} from 'ajv'
+import Ajv2019 from 'ajv/dist/2019'
+import Ajv2020 from 'ajv/dist/2020'
 import fs from 'fs/promises'
 import path from 'path'
 
@@ -51,11 +53,9 @@ export function parseValue(value: string, type?: string): unknown {
   }
   switch (type) {
     case 'number': {
-      if (value.trim() === '')
-        throw new Error(`Invalid number value: ${value}`)
+      if (value.trim() === '') throw new Error(`Invalid number value: ${value}`)
       const num = Number(value)
-      if (!isFinite(num))
-        throw new Error(`Invalid number value: ${value}`)
+      if (!isFinite(num)) throw new Error(`Invalid number value: ${value}`)
       return num
     }
     case 'boolean':
@@ -103,10 +103,7 @@ export function keyToPath(key: string): (string | number)[] {
 /**
  * Gets a nested value from an object/array using a path array.
  */
-function getNestedValue(
-  obj: unknown,
-  segments: (string | number)[]
-): unknown {
+function getNestedValue(obj: unknown, segments: (string | number)[]): unknown {
   let current: unknown = obj
   for (const segment of segments) {
     if (
@@ -204,8 +201,14 @@ export async function validateJsonSchema(
     }
   }
 
-  const ajv = new Ajv({allErrors: true})
-  let validate: ReturnType<typeof ajv.compile>
+  const declaredDraft = (schema as {$schema?: unknown}).$schema
+  const draft = typeof declaredDraft === 'string' ? declaredDraft : ''
+  const ajv = draft.includes('2020-12')
+    ? new Ajv2020({allErrors: true})
+    : draft.includes('2019-09')
+      ? new Ajv2019({allErrors: true})
+      : new Ajv({allErrors: true})
+  let validate: ValidateFunction
   try {
     validate = ajv.compile(schema)
   } catch (e) {
@@ -299,7 +302,11 @@ export async function modifyJsonFile(
 
   for (const prop of properties) {
     const jsonPath = keyToPath(prop.key)
-    const oldValue = getNestedValue(parsed, jsonPath)
+    const currentDoc: unknown =
+      modifiedContent === content
+        ? parsed
+        : parse(modifiedContent, undefined, {allowTrailingComma: true})
+    const oldValue = getNestedValue(currentDoc, jsonPath)
 
     if (prop.delete) {
       core.info(`Deleting ${prop.key}`)

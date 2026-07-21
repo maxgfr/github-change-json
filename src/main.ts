@@ -41,9 +41,7 @@ export const run = async (): Promise<void> => {
       }
       for (const change of properties) {
         if (!change.key || typeof change.key !== 'string') {
-          throw new Error(
-            "Each change must have a 'key' property (string)"
-          )
+          throw new Error("Each change must have a 'key' property (string)")
         }
         if (change.delete && change.merge) {
           throw new Error(
@@ -129,7 +127,9 @@ export const run = async (): Promise<void> => {
       core.setOutput('new-value', JSON.stringify(newValues))
     }
 
-    if (isCommit && !isDryRun) {
+    if (isCommit && !isDryRun && !modified) {
+      core.info('No changes detected, skipping commit')
+    } else if (isCommit && !isDryRun) {
       core.info('Committing file changes')
       await exec.exec('git', [
         'config',
@@ -155,7 +155,9 @@ export const run = async (): Promise<void> => {
         commitMessage = `chore: update ${filePath} with ${properties.length} changes`
       }
 
-      const commitArgs = ['commit', '-am', commitMessage, '--no-verify']
+      await exec.exec('git', ['add', '--', filePath])
+
+      const commitArgs = ['commit', '-m', commitMessage, '--no-verify']
       if (isSignoff) {
         commitArgs.push('--signoff')
       }

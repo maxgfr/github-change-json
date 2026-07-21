@@ -285,12 +285,14 @@ The action detects and preserves the original file's:
 - Runs **before** writing -- the file is never left in an invalid state
 - Works in `dry-run` mode too (validates the would-be result)
 - Supports local file paths and `http://` / `https://` URLs (30s fetch timeout)
-- Uses JSON Schema draft-07 via [Ajv](https://ajv.js.org/)
+- Uses [Ajv](https://ajv.js.org/) with automatic draft detection: draft-07 by default, draft 2019-09 and 2020-12 when the schema's `$schema` declares them
 - `$ref` to external URLs within the schema is not supported
 
 ### Commit Behavior
 
 When `commit: true`:
+- If the change is a no-op (the file already has the requested state), the commit and push are skipped and the action succeeds with `modified: false`
+- Only the target JSON file is staged (`git add -- <path>`) -- unrelated changes in the worktree are never swept into the commit, and a file newly created by `create-if-missing` is committed correctly
 - Git user name is set to `GITHUB_ACTOR` (fallback: `github-actions[bot]`)
 - Git user email is set to `<GITHUB_ACTOR>@users.noreply.github.com` (fallback: `github-actions@users.noreply.github.com`)
 - Commit message format:
@@ -311,7 +313,7 @@ The action fails with a clear message when:
 - Invalid `type` value (anything other than `string`, `number`, `boolean`, `json`)
 - Conflicting flags (`delete` + `merge` both true)
 - Non-string `value` in `changes` array (e.g. `{"value": 42}` instead of `{"value": "42"}`)
-- Missing required fields (`key` or `value` when needed)
+- Missing required fields (`key` or `value` when needed). Note: an empty `value` is treated as missing in single-key mode -- to set a key to an empty string, use the `changes` input (`{"key": "...", "value": ""}`)
 - Invalid `changes` input (not valid JSON, not an array, missing `key`)
 - Merge with non-JSON or non-object value
 - Schema validation failure (with detailed per-field error messages)
