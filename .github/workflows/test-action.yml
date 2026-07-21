@@ -6,6 +6,9 @@ on:
       - main
       - 'releases/*'
 
+permissions:
+  contents: write
+
 jobs:
   test-basic:
     name: Basic key/value modification

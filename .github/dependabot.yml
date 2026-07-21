@@ -5,6 +5,13 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    ignore:
+      # The 3.x line of the actions toolkit is ESM-only and incompatible
+      # with this CommonJS + ncc bundle.
+      - dependency-name: '@actions/core'
+        update-types: ['version-update:semver-major']
+      - dependency-name: '@actions/exec'
+        update-types: ['version-update:semver-major']
     groups:
       minor-and-patch:
         update-types:
