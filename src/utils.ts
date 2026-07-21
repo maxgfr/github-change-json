@@ -203,11 +203,13 @@ export async function validateJsonSchema(
 
   const declaredDraft = (schema as {$schema?: unknown}).$schema
   const draft = typeof declaredDraft === 'string' ? declaredDraft : ''
+  // User-provided schemas must validate per the JSON Schema spec, not per
+  // Ajv's opinionated strict mode (which rejects e.g. unbound prefixItems).
   const ajv = draft.includes('2020-12')
-    ? new Ajv2020({allErrors: true})
+    ? new Ajv2020({allErrors: true, strict: false})
     : draft.includes('2019-09')
-      ? new Ajv2019({allErrors: true})
-      : new Ajv({allErrors: true})
+      ? new Ajv2019({allErrors: true, strict: false})
+      : new Ajv({allErrors: true, strict: false})
   let validate: ValidateFunction
   try {
     validate = ajv.compile(schema)

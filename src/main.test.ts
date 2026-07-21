@@ -79,6 +79,9 @@ describe('main', () => {
 
   beforeEach(async () => {
     jest.clearAllMocks()
+    // The runner sets GITHUB_HEAD_REF on pull_request events; tests must not
+    // depend on the CI environment they run in.
+    delete process.env.GITHUB_HEAD_REF
 
     fs = await import('fs/promises')
 
@@ -243,11 +246,26 @@ describe('main', () => {
       ])
     })
 
-    it('should use GITHUB_HEAD_REF for pull requests', async () => {
+    it('should fall back to GITHUB_HEAD_REF when HEAD is detached', async () => {
       process.env.GITHUB_HEAD_REF = 'feature-branch'
       process.env.GITHUB_REF = 'refs/heads/main'
+      mockExec.mockImplementation(async (_cmd, args, options) => {
+        if (
+          args &&
+          args[0] === 'branch' &&
+          args[1] === '--show-current' &&
+          options?.listeners?.stdout
+        ) {
+          options.listeners.stdout(Buffer.from(''))
+        }
+        return 0
+      })
 
-      await run()
+      try {
+        await run()
+      } finally {
+        delete process.env.GITHUB_HEAD_REF
+      }
 
       expect(mockExec).toHaveBeenCalledWith('git', [
         'push',

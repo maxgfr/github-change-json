@@ -163,19 +163,24 @@ export const run = async (): Promise<void> => {
       }
       await exec.exec('git', commitArgs)
 
+      let currentBranch = ''
+      await exec.exec('git', ['branch', '--show-current'], {
+        listeners: {
+          stdout: (data: Buffer) => {
+            currentBranch += data.toString()
+          }
+        }
+      })
+      currentBranch = currentBranch.trim()
+
       let pushRef: string
-      if (process.env.GITHUB_HEAD_REF) {
+      if (currentBranch) {
+        pushRef = `refs/heads/${currentBranch}`
+      } else if (process.env.GITHUB_HEAD_REF) {
+        // Detached HEAD (e.g. a pull_request merge ref): push to the PR branch
         pushRef = process.env.GITHUB_HEAD_REF
       } else {
-        let currentBranch = ''
-        await exec.exec('git', ['branch', '--show-current'], {
-          listeners: {
-            stdout: (data: Buffer) => {
-              currentBranch += data.toString()
-            }
-          }
-        })
-        pushRef = `refs/heads/${currentBranch.trim()}`
+        throw new Error('Unable to determine the branch to push to')
       }
       await exec.exec('git', ['push', '-u', 'origin', `HEAD:${pushRef}`])
       core.info('File has been successfully committed and pushed')

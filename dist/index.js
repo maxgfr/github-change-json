@@ -39951,20 +39951,25 @@ const run = () => __awaiter(void 0, void 0, void 0, function* () {
                 commitArgs.push('--signoff');
             }
             yield exec.exec('git', commitArgs);
+            let currentBranch = '';
+            yield exec.exec('git', ['branch', '--show-current'], {
+                listeners: {
+                    stdout: (data) => {
+                        currentBranch += data.toString();
+                    }
+                }
+            });
+            currentBranch = currentBranch.trim();
             let pushRef;
-            if (process.env.GITHUB_HEAD_REF) {
+            if (currentBranch) {
+                pushRef = `refs/heads/${currentBranch}`;
+            }
+            else if (process.env.GITHUB_HEAD_REF) {
+                // Detached HEAD (e.g. a pull_request merge ref): push to the PR branch
                 pushRef = process.env.GITHUB_HEAD_REF;
             }
             else {
-                let currentBranch = '';
-                yield exec.exec('git', ['branch', '--show-current'], {
-                    listeners: {
-                        stdout: (data) => {
-                            currentBranch += data.toString();
-                        }
-                    }
-                });
-                pushRef = `refs/heads/${currentBranch.trim()}`;
+                throw new Error('Unable to determine the branch to push to');
             }
             yield exec.exec('git', ['push', '-u', 'origin', `HEAD:${pushRef}`]);
             core.info('File has been successfully committed and pushed');
@@ -40192,11 +40197,13 @@ function validateJsonSchema(content, schemaSource) {
         }
         const declaredDraft = schema.$schema;
         const draft = typeof declaredDraft === 'string' ? declaredDraft : '';
+        // User-provided schemas must validate per the JSON Schema spec, not per
+        // Ajv's opinionated strict mode (which rejects e.g. unbound prefixItems).
         const ajv = draft.includes('2020-12')
-            ? new _2020_1.default({ allErrors: true })
+            ? new _2020_1.default({ allErrors: true, strict: false })
             : draft.includes('2019-09')
-                ? new _2019_1.default({ allErrors: true })
-                : new ajv_1.default({ allErrors: true });
+                ? new _2019_1.default({ allErrors: true, strict: false })
+                : new ajv_1.default({ allErrors: true, strict: false });
         let validate;
         try {
             validate = ajv.compile(schema);
