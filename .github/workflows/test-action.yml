@@ -14,7 +14,7 @@ jobs:
     name: Basic key/value modification
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Get commit sha
         run: echo "GITHUB_SHA=${GITHUB_SHA}" >> $GITHUB_ENV
@@ -56,7 +56,7 @@ jobs:
     name: Nested key support
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Modify nested key in tsconfig
         uses: ./
@@ -98,7 +98,7 @@ jobs:
     name: Deep nested key creation
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Modify deep nested key in config
         uses: ./
@@ -131,7 +131,7 @@ jobs:
     name: Type-aware values
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set number value
         uses: ./
@@ -195,7 +195,7 @@ jobs:
     name: Delete key
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Delete a key
         uses: ./
@@ -228,7 +228,7 @@ jobs:
     name: Bulk changes input
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Apply multiple changes at once
         id: bulk
@@ -277,7 +277,7 @@ jobs:
     name: Output values
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Modify and capture outputs
         id: modify
@@ -339,7 +339,7 @@ jobs:
     name: Dry-run mode
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Get content before
         id: before
@@ -379,7 +379,7 @@ jobs:
     name: Formatting preservation
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Modify config with 4-space indentation
         uses: ./
@@ -414,7 +414,7 @@ jobs:
     name: JSONC support
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Modify JSONC file (tsconfig with comments)
         uses: ./
@@ -447,7 +447,7 @@ jobs:
     name: Error handling
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Should fail on non-existent file
         id: missing
@@ -526,7 +526,7 @@ jobs:
     name: Array index support
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Modify array element by index
         uses: ./
@@ -577,7 +577,7 @@ jobs:
     name: Merge mode
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Merge new script into existing scripts
         uses: ./
@@ -662,7 +662,7 @@ jobs:
     name: Schema validation
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Valid modification passes schema
         uses: ./
@@ -738,7 +738,7 @@ jobs:
     name: Create file if missing
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Verify file does not exist yet
         run: |
@@ -803,7 +803,7 @@ jobs:
     name: Commit with signoff
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Create temp branch for signoff test
         run: git checkout -b test-signoff-${{ github.run_id }}
