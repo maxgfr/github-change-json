@@ -33,7 +33,7 @@
   },
   "packageManager": "pnpm@10.29.1",
   "dependencies": {
-    "@actions/core": "^2.0.3",
+    "@actions/core": "^3.0.1",
     "@actions/exec": "^2.0.0",
     "ajv": "^8.18.0",
     "jsonc-parser": "^3.3.1"
