@@ -37,7 +37,7 @@ jobs:
   release:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set scoped name for GitHub Packages
         uses: maxgfr/github-change-json@main
